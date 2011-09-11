@@ -1,0 +1,31 @@
+---
+layout: base
+---
+
+<h1>Reflections on Programming</h1>
+
+<hr />
+
+<h2>About</h2>
+
+<img src="http://www.gravatar.com/avatar/d7592ca0c010e05bded933af39ac7b0e.png" style="float: right; padding-left: 10px;" />
+
+<p>My name is Rickard Lindberg. I am interested in programming. On this site I
+reflect on various aspects this activity.</p>
+
+<div class="span-10">
+  <h2>Recent Posts</h2>
+  <ul>
+  {% for post in site.posts offset: 0 limit: 5 %}
+      <li><a href="{{ post.url }}">{{ post.title }}</a> ({{ post.date | date_to_string }})</li>
+  {% endfor %}
+  </ul>
+</div>
+
+<div class="span-10 last">
+  <h2>Archive</h2>
+  <p>The <a href="/archive">archive</a> has a chronological list of all
+  posts.</p>
+</div>
+
+<hr />

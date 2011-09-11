@@ -1,0 +1,7 @@
+auto: true
+server: true
+
+exclude: ["README"]
+
+pygments: true
+permalink: /:year/:month/:title
