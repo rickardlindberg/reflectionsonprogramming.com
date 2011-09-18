@@ -3,7 +3,7 @@
 <html>
   <head>
     <title>
-      {% if page.title %}{{ page.title }} | {% endif %}Reflections on Programming
+      {% if page.title != 'Reflections on Programming' %}{{ page.title }} | {% endif %}Reflections on Programming
     </title>
     <meta name="keywords" content="reflections, programming" />
     <meta name="description" content="Reflections on various aspects of programming.">
@@ -18,6 +18,8 @@
   <body>
     <div class="container noshowgrid">
       <div class="span-20 prepend-2 append-2">
+        <h1>{{ page.title }}</h1>
+        <hr />
         {{ content }}
       </div>
     </div>
