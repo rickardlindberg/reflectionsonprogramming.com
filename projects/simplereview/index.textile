@@ -1,0 +1,14 @@
+---
+layout: base
+title: Simple review
+---
+
+Simple review is a web-based tool that makes it easy to comment on changes to text files.
+
+I wrote it as an experiment to see what the most simple tool for code review could look like.
+
+You can find the source code on "github":https://github.com/rickardlindberg/simple-review.
+
+<hr />
+
+<p><a href="/">Home</a></p>
