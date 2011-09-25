@@ -17,7 +17,7 @@ reflect on various aspects of this enjoyable activity.</p>
 <hr />
 
 <div class="span-10">
-  <h2>Recent Posts</h2>
+  <h2>Recent posts</h2>
   <ul>
   {% for post in site.posts offset: 0 limit: 5 %}
       <li><a href="{{ post.url }}">{{ post.title }}</a> ({{ post.date | date_to_string }})</li>
