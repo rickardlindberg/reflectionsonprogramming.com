@@ -9,7 +9,7 @@ body {
     font-size: 87.5%; /* 14px -> line-height (x1.5) = 21px */
 }
 
-p {
+p, li {
     font-family: serif;
 }
 
