@@ -3,13 +3,18 @@ layout: base
 title: Reflections on Programming
 ---
 
+<h2>About</h2>
+
 <img src="/images/rick.png" style="float: right; padding-left: 30px;
 padding-bottom: 21px;" />
 
-<h2>About</h2>
-
 <p>My name is Rickard Lindberg. I am interested in programming. On this site I
 reflect on various aspects of this enjoyable activity.</p>
+
+<p>The purpose of this site is to share my reflections with others and in the
+process also learn more myself.</p>
+
+<p>I hope you find the content here interesting and useful.</p>
 
 <p>If you want to contact me you can write an email to
 <a href="mailto:ricli85@gmail.com">ricli85@gmail.com</a>.</p>
@@ -20,7 +25,7 @@ reflect on various aspects of this enjoyable activity.</p>
   <h2>Recent posts</h2>
   <ul>
   {% for post in site.posts offset: 0 limit: 5 %}
-      <li><a href="{{ post.url }}">{{ post.title }}</a> ({{ post.date | date_to_string }})</li>
+    <li><a href="{{ post.url }}">{{ post.title }}</a> ({{ post.date | date_to_string }})</li>
   {% endfor %}
   </ul>
 </div>
