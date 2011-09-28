@@ -137,7 +137,7 @@ The first reason to break can be controlled with unit tests for @replace_in_orde
 
 The second reason to break can be removed by implementing @replace_in_order@ differently so that the order of configuration strings is not important. (It would then also have to change name.)
 
-The third reason to break is a little tricky to test automatically. To do that you need to send an escaped string to some JSON library and then get it back and see that it looks the same. Perhaps reading the JSON specification and comparing it with the @replacements@ list is better.
+The third reason to break is a little tricky to test automatically. To do that you need to send an escaped string to some JSON library and then get it back and see that it looks the same. Perhaps reading the JSON specification and comparing it with the @replacements@ list is an acceptable compromise.
 
 The fourth reason to break can be controlled by having a small integration test.
 
