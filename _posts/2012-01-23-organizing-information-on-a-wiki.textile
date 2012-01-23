@@ -25,6 +25,6 @@ h2. Better refactoring support
 
 A wiki that seems to have a better solution to this problem is Ward Cunningham's "smallest federated wiki":http://github.com/WardCunningham/Smallest-Federated-Wiki. A "screencast":http://www.youtube.com/watch?v=tYrLwlxOKmA shows how you can drag a paragraph and drop it on another page. And that's it. You're done.
 
-I think that your behaviour will change if you have this refactoring support. Because it is easier and faster to reorganize information, I think you will end up with a better organized wiki in less time.
+I think that your behaviour will change if you have this refactoring support. Because it's easier and faster to organize information, I think you will end up with a better organized wiki in less time.
 
-You can also argue that if refactoring is is easy and fun, you will spend more time doing it than is actually worth. I think I would still want the feature though.
+You can also argue that if refactoring is is easy and fun, you will spend more time doing it than what is actually worth. I think I would still want the feature though.
