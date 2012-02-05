@@ -29,7 +29,7 @@ h2. Why Haskell?
 
 I wanted to write a real application in a functional language. But why Haskell?
 
-I came across Haskell by accident. Because I was learning "Mercurial":http://mercurial.selenic.com/, I was reading "Mercurial: The Definitive Guide":http://hgbook.red-bean.com/, written by Bryan O'Sullivan. I learned that he had also co-authored the book "Real World Haskell":http://book.realworldhaskell.org/. Since I liked his first book, I started reading the one about Haskell.
+I came across Haskell by accident. Because I was learning "Mercurial":http://mercurial.selenic.com/, I was reading "Mercurial: The Definitive Guide":http://hgbook.red-bean.com/, written by Bryan O'Sullivan. I found out that he had also co-authored the book "Real World Haskell":http://book.realworldhaskell.org/. Since I liked his first book, I started reading the one about Haskell.
 
 I found Haskell interesting for two reasons: you can obviously build real things in it (and I had a book to show me how), and it's a purely functional language.
 
