@@ -64,14 +64,14 @@ Each test case is represented by a do-block. In this case, the do-block creates 
 
 If we run this, we get
 
-{% highlight %}
+{% highlight text %}
 Cases: 2  Tried: 2  Errors: 0  Failures: 0
 Counts {cases = 2, tried = 2, errors = 0, failures = 0}
 {% endhighlight %}
 
 If we make a mistake, we get
 
-{% highlight %}
+{% highlight text %}
 ### Failure in: 1:can add large numbers
 expected: 31
  but got: 30
