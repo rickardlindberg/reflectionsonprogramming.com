@@ -7,7 +7,7 @@ categories:
 
 I was pairing with "@testobsessed":http://twitter.com/testobsessed on the "file organization application":/2012/01/application-development-series-intro/ and we were writing tests in HUnit (the xUnit framework for Haskell).
 
-We noticed that HUnit has no built in support for @setUp@ and @tearDown@.
+We noticed that HUnit has no built-in support for @setUp@ and @tearDown@.
 
 In this post I explain how it can be implemented in HUnit. I explain how it is different from traditional xUnit frameworks and highlight why I think it's more beautiful.
 
@@ -86,7 +86,7 @@ h2. Haskell implementation
 The way you implement @setUp@ and @tearDown@ in a HUnit is to include it in every test function that needs it. Something like this:
 
 {% highlight haskell %}
-"a test case" ~: do
+"can import file" ~: do
     tmpDir <- createDirectory "/tmp/org-app-test"
     -- Test that does something with tmpDir
     removeDirectoryRecursive tmpDir
@@ -100,7 +100,7 @@ We can extract this pattern into a function:
 withTemporaryDirectory :: (FilePath -> IO ()) -> IO ()
 withTemporaryDirectory = bracket setUp tearDown
     where
-        tmpDir   = "/tmp/org-app"
+        tmpDir   = "/tmp/org-app-test"
         setUp    = createDirectory tmpDir >> return tmpDir
         tearDown = removeDirectoryRecursive
 {% endhighlight %}
@@ -110,17 +110,17 @@ The "@bracket@":http://hackage.haskell.org/packages/archive/base/latest/doc/html
 It is roughly equivalent to this:
 
 {% highlight python %}
-tmp_dir = setUp()
+tmpDir = setUp()
 try:
-    # Test that does something with tmp_dir
+    # Test that does something with tmpDir
 finally:
-    tearDown(tmp_dir)
+    tearDown(tmpDir)
 {% endhighlight %}
 
 We can use @withTemporaryDirectory@ like this:
 
 {% highlight haskell %}
-"a test case" ~: withTemporaryDirectory $ \tmpDir -> do
+"can import file" ~: withTemporaryDirectory $ \tmpDir -> do
     -- Test that does something with tmpDir
 {% endhighlight %}
 
@@ -142,6 +142,6 @@ I think several aspects of this approach are more elegant than in traditional xU
 
 * It's clear which tests use this fixture; In the Python example it might be all tests in the class, or it might be just a few, or none.
 
-* Compared to traditional xUnit frameworks, you are more explicit about what a test needs. You don't need to scroll up a page to find what the @setUp@ and @tearDown@ actually do. It's all encapsulated in the test function. Even though it's more explicit in Haskell, it's not much less readably or take up much more space.
+* Compared to traditional xUnit frameworks, you are more explicit about what a test needs. You don't need to scroll up a page to find what the @setUp@ and @tearDown@ actually do. It's all encapsulated in the test function. Even though it's more explicit in Haskell, it's not much less readable.
 
 * To understand how @setUp@ and @tearDown@ works in traditional xUnit frameworks, you probably have to read the manual. But in the example above, you can figure out what's going on by just reading the test function and @withTemporaryDirectory@.
