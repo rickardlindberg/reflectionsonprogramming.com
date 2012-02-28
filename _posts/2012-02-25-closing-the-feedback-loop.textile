@@ -3,18 +3,9 @@ layout: post
 title: Closing the feedback loop
 ---
 
-    This post was originally published 4 July 2010. The blog it was published
-    on is no longer active, and therefore I decided to move the post over here.
+_This post was originally published 4 July 2010. The blog it was published on is no longer active, and I therefore decided to move the post over here._
 
-    I never used the tool that I describe in this post. I guess it was because
-    I could run my tests as fast from Vim.
-
-    However, after watching Bret Victor's amazing talk
-    "Inventing on Principle":http://vimeo.com/36579366, I was inspired to
-    build a tool like this again. It should be able to visualize more aspects
-    of your code other than the tests passing or failing. The goal should be to
-    give you quicker feedback about your changes. I shall write more about my
-    attempts at building this tool in the future.
+_I never used the tool that I describe in this post. I guess it was because I could run my tests as fast from Vim. However, after watching Bret Victor's amazing talk "Inventing on Principle":http://vimeo.com/36579366, I was inspired to build a tool like this again. It should be able to visualize more aspects of your code other than the tests passing or failing. The goal should be to give you quicker feedback on your changes. I shall write more about my attempts at building this tool in the future._
 
 I have recently spent some time reading the book _Working Effectively with Legacy Code_ by Michael Feathers. I find it interesting because it describes techniques for making bad code better.
 
