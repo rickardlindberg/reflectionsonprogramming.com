@@ -1,7 +1,11 @@
 ---
 layout: base
-title: Simple review
+title: Projects
 ---
+
+On this page I list projects I've been involved in.
+
+h2(#simplereview). Simple review
 
 Simple review is a web-based tool that makes it easy to comment on changes to text files.
 
