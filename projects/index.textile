@@ -13,6 +13,12 @@ I wrote it as an experiment to see what the most simple tool for code review cou
 
 You can find the source code on "github":https://github.com/rickardlindberg/simple-review.
 
+h2(#timeline). Timeline
+
+Timeline is a cross-platform application for displaying and navigating events on a timeline.
+
+More at: "http://thetimelineproj.sourceforge.net/":http://thetimelineproj.sourceforge.net/.
+
 <hr />
 
 <p><a href="/">Home</a></p>
