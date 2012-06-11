@@ -5,7 +5,7 @@ categories:
   - org-app-series
 ---
 
-In this post I explain how I used a wiki to organize ideas about an "application I'm developing":/2012/01/application-development-series-intro/. I used the wiki on "GitHub":https://github.com/rickardlindberg/org-app/wiki.
+In this post I explain how I used a wiki to organize ideas about an "application I'm developing":/2012/01/application-development-series-intro/. I used the wiki on "GitHub":https://github.com/rickardlindberg/orgapp/wiki.
 
 h2. Process
 

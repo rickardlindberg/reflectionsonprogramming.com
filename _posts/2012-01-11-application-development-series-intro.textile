@@ -27,7 +27,7 @@ After getting the idea, I drew some sketches of the interface and came up with t
 
 The basic workflow is this: you import files into the application, they show up in the file list, and you can then open them from there. In addition, you can assign tags to files and then filter the file list on tags.
 
-All my ideas can be found on the "github wiki":https://github.com/rickardlindberg/org-app/wiki.
+All my ideas can be found on the "github wiki":https://github.com/rickardlindberg/orgapp/wiki.
 
 h2. Vision
 
@@ -37,4 +37,4 @@ I plan to add simple, small, working features incrementally so that I can play w
 
 h2. Follow me
 
-This blog and the "github page":https://github.com/rickardlindberg/org-app are good places to follow me in the development process.
+This blog and the "github page":https://github.com/rickardlindberg/orgapp are good places to follow me in the development process.
