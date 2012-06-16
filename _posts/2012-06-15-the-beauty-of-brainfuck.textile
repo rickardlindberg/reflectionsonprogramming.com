@@ -7,11 +7,11 @@ Recently I've been writing interpreters for the Brainfuck programming language i
 
 I've experimented with different solutions: both to see how different approaches feel like and also to see how different solutions affects performance.
 
-Today I wrote a version that I find so beautiful and elegant that I must share it. It is my fifth implementation, and it is inspired by ideas that raek presented to me during and after a workshop.
+Today I wrote a version that I find so beautiful and elegant that I must share it. It is my fifth implementation, and it is inspired by ideas that "raek":http://raek.se/ presented to me during and after a workshop.
 
 h2. Brainfuck
 
-If you don't know what Brainfuck is or how it works, go read on Wikipedia. I will not explain it here.
+If you don't know what Brainfuck is or how it works, go read on "Wikipedia":http://en.wikipedia.org/wiki/Brainfuck. I will not explain it here.
 
 h2. Haskell
 
@@ -126,7 +126,7 @@ data Token
 
 This is a tree-like structure where all tokens are leaves except for loops which in turn have a list of tokens inside of them.
 
-The function that converts a Brainfuck program to a list of tokens uses the Parsec library and looks like this:
+The function that converts a Brainfuck program to a list of tokens uses the "Parsec":http://legacy.cs.uu.nl/daan/parsec.html library and looks like this:
 
 {% highlight haskell %}
 parseTokens :: String -> [Token]
@@ -238,4 +238,4 @@ h2. Beauty
 
 Only in functional languages have I felt that my code has this feel of beauty.
 
-If you want to experience it for yourself, the source code is up on github.
+If you want to experience it for yourself, the source code is up on "github":https://github.com/rickardlindberg/brainfuck.
