@@ -5,13 +5,13 @@ title: The beauty of Brainfuck
 
 Recently I've been writing interpreters for the Brainfuck programming language in Haskell. I've also held two workshops where I've taught Haskell, and in those workshops, the last exercise is to work on a Brainfuck interpreter.
 
-I've experimented with different solutions: both to see how different approaches feel like and also to see how different solutions affects performance.
+I've experimented with different solutions both to see what they feel like and also to see how they affect performance.
 
-Today I wrote a version that I find so beautiful and elegant that I must share it. It is my fifth implementation, and it is inspired by ideas that "raek":http://raek.se/ presented to me during and after a workshop.
+The fifth version became particularly beautiful, and I will share that beauty with you in this post. This version is inspired by ideas that "raek":http://raek.se/ presented to me during and after a workshop.
 
 h2. Brainfuck
 
-If you don't know what Brainfuck is or how it works, go read on "Wikipedia":http://en.wikipedia.org/wiki/Brainfuck. I will not explain it here.
+If you are not familiar with Brainfuck, go read on "Wikipedia":http://en.wikipedia.org/wiki/Brainfuck. I will not explain it here.
 
 h2. Haskell
 
@@ -74,7 +74,7 @@ The most interesting thing to note here is that we use a map instead of a list s
 
 h3. General helper functions
 
-To make it easier to work with the data tape, we have these general helper functions which will work no matter what implementation of the typeclass we use:
+To make it easier to work with the data tape, we have these general helper functions which work no matter what implementation of the typeclass we use:
 
 {% highlight haskell %}
 dataMoveRight :: Data d => d -> d
@@ -197,7 +197,7 @@ toByteCode tokens = toByteCode' tokens BEND
                                         in  loop
 {% endhighlight %}
 
-There is one special trick going on here, and that is in the last case where we create the loop instruction. @toByteCode'@ takes as last argument the instruction that should be at the end. At the top level, we pass in @BEND@, but when creating the loop, we pass in the loop itself. So the last instruction of the loop will link to the loop itself.
+There is one special trick going on here, and that is in the last case where we create the loop instruction. @toByteCode'@ takes as last argument the instruction that should be at the end. At the top level, we pass in @BEND@, but when creating the loop, we pass in the loop itself. So the last instruction of the loop links to the loop itself.
 
 Below is a picture of the byte code representation of this Brainfuck program "@.[-.]>@":
 
