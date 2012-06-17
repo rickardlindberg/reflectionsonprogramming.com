@@ -9,11 +9,11 @@ I've experimented with different solutions both to see what they feel like and a
 
 The fifth version became particularly beautiful, and I shall share that beauty with you in this post. This version is inspired by ideas that "raek":http://raek.se/ presented to me during and after a workshop.
 
-h2. Brainfuck
+h2. The Brainfuck language
 
 If you are not familiar with Brainfuck, go read on "Wikipedia":http://en.wikipedia.org/wiki/Brainfuck. I will not explain it here.
 
-h2. Haskell
+h2. Haskell knowledge
 
 I'm going to assume that you are a bit familiar with Haskell. If there is something in particular that you do not understand, feel free to ask in the comments.
 
@@ -70,7 +70,7 @@ instance Data DataMap where
     dataModifyPos fn dat = dat { currentPos = fn (currentPos dat) }
 {% endhighlight %}
 
-The most interesting thing to note is that we use a map instead of a list structure. This makes it easy to create an infinite tape. If we ask for a value at a position that does not yet exist, we just return the default value 0.
+The most interesting thing to note is that we use a "map":http://www.haskell.org/ghc/docs/latest/html/libraries/containers/Data-Map.html instead of a list structure. This makes it easy to create an infinite tape. If we ask for a value at a position that does not yet exist, we just return the default value 0.
 
 h3. General helper functions
 
@@ -102,13 +102,13 @@ dec :: Int -> Int
 dec x = x - 1
 {% endhighlight %}
 
-h2. Parsing
+h2. Compiling
 
-With the data tape out of the way, let's look at how a Brainfuck program is represented in Haskell. The source code is transformed in two steps: first the program is converted to a list of tokens, and then those tokens are converted to a sort of byte code that the @run@ function can interpret.
+With the data tape out of the way, let's look at how a Brainfuck program is represented in Haskell. The source code is transformed in two steps: first the program is converted to a list of tokens, and then those tokens are converted to a sort of byte code that the @run@ function interprets.
 
 Making this separation has the benefit that each function that does a transformation can focus on doing only one transformation. The parsing function only needs to deal with the problem of getting the structure of a Brainfuck program represented in Haskell, and does not have to know anything about how this later gets executed.
 
-h3. Tokenizing
+h3. Parsing tokens
 
 The data structure for tokens looks like this:
 
@@ -158,7 +158,7 @@ Our parser is run on the line with the case-expression. Parsing something with P
 
 Before we pass the input string to the parser, we remove all comments by keeping only the characters from the input string that mean something in Brainfuck.
 
-h3. Compiling
+h3. Converting tokens to byte code
 
 The byte code that @run@ interprets looks like this:
 
@@ -210,9 +210,9 @@ compile :: String -> ByteCode
 compile = toByteCode . parseTokens
 {% endhighlight %}
 
-h2. Running
+h2. Running byte code
 
-The @run@ functions looks like this:
+The @run@ function looks like this:
 
 {% highlight haskell %}
 run :: Data d => ByteCode -> d -> String -> String
@@ -230,11 +230,11 @@ run (BLoop  loop next) dat input
 
 It takes as input a byte code, the Brainfuck data tape, and the user input. The return value is a string which is the output of the program.
 
-The formatting reveals that there are only two byte codes which modify the output, and that is @BEND@ and @BPrint@. In the same way, we can see that @BRead@ is the only byte code that consumes input. All other byte codes just pass the input along to the next instruction.
+The formatting reveals that there are only two byte codes which modify the output, and that is @BEND@ and @BPrint@. In the same way, we can see that @BRead@ is the only byte code that consumes input. All other byte codes just pass the input along to the next instruction. About half of the byte codes do something with the data tape. In those cases, a modified data tape is passed to the recursive call to @run@.
 
 When running a loop instruction, we examine the current value on data tape and decide which branch of instructions to continue with.
 
-h2. Beauty
+h2. The beauty
 
 I find this implementation beautiful because every piece of the program does one specific thing and the pieces are combined to form a whole. The program is also compact. But it's not compact because text has been crammed together. It's compact because combining different pieces in Haskell does not require much syntactic noise.
 
