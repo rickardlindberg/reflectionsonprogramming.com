@@ -236,8 +236,8 @@ When running a loop instruction, we examine the current value on data tape and d
 
 h2. Beauty
 
-- Explain more why beautiful
+I find this implementation beautiful because every piece of the program does one specific thing and the pieces are combined to form a whole. The program is also compact. But it's not compact because text has been crammed together. It's compact because combining different pieces in Haskell does not require much syntactic noise.
 
-Only in functional languages have I felt that my code has this feel of beauty.
+Because I've never felt this kind of beauty in my object oriented code, I suspect that it is the way functional languages allow you to combine pieces that make them beautiful.
 
-If you want to experience it for yourself, the source code is up on "github":https://github.com/rickardlindberg/brainfuck.
+If you want to get at closer look at the source code or look at other implementations, it is up on "github":https://github.com/rickardlindberg/brainfuck.
