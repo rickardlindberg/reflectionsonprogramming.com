@@ -7,7 +7,7 @@ Recently I've been writing interpreters for the Brainfuck programming language i
 
 I've experimented with different solutions both to see what they feel like and also to see how they affect performance.
 
-The fifth version became particularly beautiful, and I will share that beauty with you in this post. This version is inspired by ideas that "raek":http://raek.se/ presented to me during and after a workshop.
+The fifth version became particularly beautiful, and I shall share that beauty with you in this post. This version is inspired by ideas that "raek":http://raek.se/ presented to me during and after a workshop.
 
 h2. Brainfuck
 
@@ -26,7 +26,7 @@ execute :: String -> IO ()
 execute program = interact (run (compile program) emptyDataMap)
 {% endhighlight %}
 
-The Brainfuck program enters our @execute@ function as a string. We compile the program to an internal representation and then we @run@ it together with a data tape, @emptyDataMap@, that holds the data for the Brainfuck program.
+The Brainfuck program enters our @execute@ function as a string. We compile the program to an internal representation and then @run@ it together with a data tape, @emptyDataMap@, that holds the data for the Brainfuck program.
 
 @interact@ passes stdin to our @run@ function and prints the output of it on stdout.
 
@@ -42,11 +42,11 @@ class Data d where
     dataModifyPos   :: (Int -> Int) -> d -> d
 {% endhighlight %}
 
-First of all we need a way to create the data tape. Next we need a way to extract the integer at the current position. And finally we need to be able to change the value at the current position and also change the position itself.
+First of all we need a way to create a data tape. Next we need a way to extract the integer at the current position. And finally we need to be able to change the value at the current position and also change the position itself.
 
 h3. A concrete implementation
 
-A concrete implementation of this typeclass is with a map:
+A concrete implementation of this typeclass is presented below:
 
 {% highlight haskell %}
 data DataMap = DataMap
@@ -70,11 +70,11 @@ instance Data DataMap where
     dataModifyPos fn dat = dat { currentPos = fn (currentPos dat) }
 {% endhighlight %}
 
-The most interesting thing to note here is that we use a map instead of a list structure. This makes it easy to create an infinite tape. If we ask for a value at a position that does not yet exist, we just return the default value 0.
+The most interesting thing to note is that we use a map instead of a list structure. This makes it easy to create an infinite tape. If we ask for a value at a position that does not yet exist, we just return the default value 0.
 
 h3. General helper functions
 
-To make it easier to work with the data tape, we have these general helper functions which work no matter what implementation of the typeclass we use:
+To make it easier to work with the data tape, we have these general helper functions that only depend on the interface of the typeclass:
 
 {% highlight haskell %}
 dataMoveRight :: Data d => d -> d
@@ -106,7 +106,7 @@ h2. Parsing
 
 With the data tape out of the way, let's look at how a Brainfuck program is represented in Haskell. The source code is transformed in two steps: first the program is converted to a list of tokens, and then those tokens are converted to a sort of byte code that the @run@ function can interpret.
 
-This separation has the benefit of separating concerns: ...
+Making this separation has the benefit that each function that does a transformation can focus on doing only one transformation. The parsing function only needs to deal with the problem of getting the structure of a Brainfuck program represented in Haskell, and does not have to know anything about how this later gets executed.
 
 h3. Tokenizing
 
@@ -152,7 +152,7 @@ parseTokens input =
                                                  bfTokens)
 {% endhighlight %}
 
-@bfTokens@ is our parser. It parses a list of @bfToken@. @bfToken@ defines a few cases saying that a token is either a plus, or a minus, and so on. The last case says: match a left bracket, then a list of tokens, then a right bracket, and put the tokens inside a @TLoop@.
+@bfTokens@ is our parser. It parses a list of @bfToken@. @bfToken@ defines a few cases saying that a token is either a plus, or a minus, and so on. The last case says: match a left bracket, then a list of tokens, then a right bracket, and put those tokens inside a @TLoop@.
 
 Our parser is run on the line with the case-expression. Parsing something with Parsec can either fail or succeed. If parsing fails, we call @error@ and make the interpreter crash. If parsing succeeds, we return the result (which is a list of tokens).
 
@@ -175,7 +175,7 @@ data ByteCode
     deriving (Show, Eq)
 {% endhighlight %}
 
-This is a recursive data type. Every byte code instruction except @BEND@ contains the byte code instruction following it. The loop instruction also has two byte codes to continue with: either we enter the loop or we continue after it.
+This is a recursive data type. Every byte code instruction except @BEND@ contains the byte code instruction following it. The loop instruction has two byte codes to continue with: either we enter the loop or we continue after it.
 
 The function that converts tokens to byte code looks like this:
 
@@ -230,11 +230,13 @@ run (BLoop  loop next) dat input
 
 It takes as input a byte code, the Brainfuck data tape, and the user input. The return value is a string which is the output of the program.
 
-The formatting shows that there are only two byte codes which modifies the output, and that is @BEND@ and @BPrint@. In the same way, we can see that @BRead@ is the only byte code that consumes input. All other byte codes just passes the input along to the next instruction.
+The formatting reveals that there are only two byte codes which modify the output, and that is @BEND@ and @BPrint@. In the same way, we can see that @BRead@ is the only byte code that consumes input. All other byte codes just pass the input along to the next instruction.
 
 When running a loop instruction, we examine the current value on data tape and decide which branch of instructions to continue with.
 
 h2. Beauty
+
+- Explain more why beautiful
 
 Only in functional languages have I felt that my code has this feel of beauty.
 
