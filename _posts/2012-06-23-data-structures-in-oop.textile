@@ -3,7 +3,7 @@ layout: post
 title: Data structures in OOP
 ---
 
-_This post was originally published 16 January 2011 with addition of Clojure note 22 January 2011. The site it was published on is longer active, and I therefore decided to move the post over here._
+_This post was originally published 16 January 2011 with addition of Clojure note 22 January 2011. The site it was published on is no longer active, and I therefore decided to move the post over here._
 
 This post discusses how you can represent and edit data structures in an object oriented programming language.
 
