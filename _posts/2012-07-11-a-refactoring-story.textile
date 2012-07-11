@@ -37,7 +37,7 @@ def fileChanged(fileName):
             job.thread = threadId
 {% endhighlight %}
 
-Corey thought it would be better if we can split the job list into two parts: one that contained the static information about jobs, and one that contained the dynamic information about jobs. With this separation, when a file changes on disk we can first filter out the jobs for which the regular expression match, and then pass them to a function which run them. In pseudo code it looks like this:
+Corey thought it would be better to split the job list into two parts: one that contained the static information about jobs, and one that contained the dynamic information about jobs. With this separation, when a file changes on disk we can first filter out the jobs for which the regular expression match, and then pass them to a function which run them. In pseudo code it looks like this:
 
 {% highlight python %}
 def fileChanged(fileName):
@@ -77,7 +77,7 @@ h2. Starting out in a different way
 
 Clearly, the steps we had tried to take weren't small enough. So we decided to start over using a different approach.
 
-Instead of splitting the job data structure, we added another field to it containing the dynamic part. The addition of the additional field broke one place in the code where the data structure was created, but other than that, we were green. We were relieved that we had a change that didn't break the build and we could do our first commit of the day. Whew!
+Instead of splitting the job data structure, we added another field to it containing the dynamic part. The addition of the additional field broke one place in the code where the job data structure was created, but other than that, we were green. We were relieved that we had a change that didn't break the build and we could do our first commit of the day. Whew!
 
 At this point our data structure for jobs looked like this:
 
@@ -96,7 +96,7 @@ And the data structure for running job info looked like this:
 * Output
 * Thread id
 
-Notice that we chose to duplicate the dynamic part in running job info. If we instead had moved fields into running job info, we would have more compilation errors. And we wanted to minimize the errors so we could work in small steps.
+Notice that we chose to duplicate the dynamic part in running job info. If we instead had moved fields into running job info, we would have more compilation errors, but we wanted to minimize the errors so we could work in small steps.
 
 The next thing we did was to always update the running job info when we updated the dynamic fields in the job data structure. With this change, we could read the dynamic fields from the running job info instead of the job data structure. We did that, and eventually we had removed all dependencies on the dynamic fields in the job data structure, so they could be removed, leaving only these fields:
 
@@ -108,7 +108,7 @@ The next thing we did was to always update the running job info when we updated 
 
 Around this point we had to stop. It was time for dinner, and we were feeling happy about the progress we had made.
 
-The next day, I continued the refactoring on my own. Everything went smoothly following this path: I was able to pull the running job info out of the job data structure into its own list, realized that the running job info didn't need to contain so much info, shrunk it, and as a result I could simplify another subsystem.
+The next day, I continued the refactoring on my own. Everything went smoothly following this path: I was able to pull the running job info out of the job data structure into its own list, realized that the running job info didn't need to contain all that information, shrunk it, and as a result I could simplify another subsystem.
 
 h2. Conclusion
 
