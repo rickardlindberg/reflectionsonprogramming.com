@@ -1,0 +1,82 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
+"http://www.w3.org/TR/html4/strict.dtd">
+<html>
+  <head>
+    <title>
+      Learning Haskell | Reflections on Programming
+    </title>
+    <meta name="keywords" content="reflections, programming" />
+    <meta name="description" content="Reflections on various aspects of programming.">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <link rel="alternate" type="application/rss+xml" title="RSS 2.0" href="/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom 0.3" href="/atom.xml" />
+    <link rel="stylesheet" href="/css/blueprint/screen.css" type="text/css" media="screen, projection">
+    <link rel="stylesheet" href="/css/blueprint/print.css" type="text/css" media="print"> 
+    <!--[if lt IE 8]>
+      <link rel="stylesheet" href="/css/blueprint/ie.css" type="text/css" media="screen, projection">
+    <![endif]-->
+    <link rel="stylesheet" href="/css/pygments/syntax.css" type="text/css"> 
+    <link rel="stylesheet" href="/css/layout.css" type="text/css"> 
+    <link rel="stylesheet" href="/css/colors.css" type="text/css"> 
+  </head>
+  <body>
+    <div class="container noshowgrid">
+      <div class="span-20 prepend-2 append-2">
+        <h1>Learning Haskell</h1>
+        <hr />
+        <p>I&#8217;ve wanted to learn Haskell for quite some time now. I&#8217;ve had the book <a href="http://book.realworldhaskell.org/read/">Real World Haskell</a> sitting in my bookshelf for a little over a year. I have read parts of it but never written any programs. This weekend I took the opportunity to learn some Haskell by writing code for a real project. What follows are my first impressions.</p>
+<h2>Why Haskell?</h2>
+<p>Ever since I learned about functional programming at university, I&#8217;ve wanted to use it in a real project. It feels like you can write beautiful solutions in a functional language that you just can&#8217;t in an object oriented language.</p>
+<p>If that is true, how come more people don&#8217;t use functional languages? If I try using one in a real project, I might find out.</p>
+<p>Why Haskell? I happened to come across it and it looked cool.</p>
+<h2>What project?</h2>
+<p>At work we write quite a lot of JavaScript code, but we lack a good tool for refactoring. The past week I wrote a simple Python script to rename a class. It only searched the source files textually for the old class name and replaced it with the new one.</p>
+<p>I thought a tool could do a better job if it parsed the source code and analyzed the parse tree. Such a tool would also be able to perform more complex refactorings.</p>
+<p>I thought Haskell would be a great language to build this tool in.</p>
+<h2>Haskell&#8217;s syntax</h2>
+<p>The first obstacle I found to writing code in Haskell was its syntax. It&#8217;s quite compact and I feel uncertain in which contexts certain constructs can be used.</p>
+<p>It also seems to be quite common in libraries to define custom operators (things that look like <code>&gt;-&gt;</code> or <code>-|-</code>).</p>
+<p>It looks intimidating at first, but I believe it&#8217;s just because I&#8217;m not used to it. The compact syntax also allows you to write quite beautiful code.</p>
+<h2>Confidence in code</h2>
+<p>I feel quite confident that the Haskell code that I write works. Since the compiler checks for type errors (getting code to compile feels difficult at times), I feel that I only need a few simple tests to verify that the code does what it&#8217;s supposed to do.</p>
+<p>Perhaps this is a false sense of confidence. I don&#8217;t yet know. But for sure I can skip writing some types of tests because the compiler will check for certain errors.</p>
+<h2>Size of steps</h2>
+<p>Compared to object oriented programming I feel that the steps I take when programming Haskell are not as small. Instead it feels like I need to think hard about a problem and then write the complete solution.</p>
+<p>One thing that makes it hard to take small steps in Haskell is that your code will not compile unless all types are correct. It probably is possible to take small steps in Haskel, but not in the same way that I&#8217;m used to from <span class="caps">OOP</span>.</p>
+<h2>Structure of solution</h2>
+<p>My first attempt at implementing a parser for <span class="caps">JSON</span> (a simpler problem to start with than JavaScript) was far from perfect. It was longer that it needed to be and contained some duplication. When I thought about how to refactor it to remove duplication and express the parsing logic in clearer way, the solution I discovered was a partition into two layers: one layer with primitives for building a parser and another layer to use those building blocks to build the <span class="caps">JSON</span> parser. (I had some help from <a href="http://thor.info.uaic.ro/~grigoras/diplome/9.pdf">Parsing with Haskell Introduction</a>.)</p>
+<p>When this happened I thought about <a href="http://mitpress.mit.edu/sicp/">Structure and Interpretation of Computer Programs</a>. In particular how they described that a powerful way to solve a complex problem is to design a language in which that problem is trivial to solve. It felt like I had done exactly that, and it felt powerful.</p>
+<p>When reading the code for the parser, I can focus on one layer at a time. Compared to <span class="caps">OOP</span> where you have a web of objects communicating with each other, it feels like the layered structure is easier to understand:</p>
+<p><img src="/images/fp_oop_structure.png" title="Structure of FP and OOP." alt="Structure of FP and OOP." /></p>
+<h2>Reuse of code</h2>
+<p>The reuse of code feels different in Haskell than in <span class="caps">OOP</span>. Firstly I think it is because the layered approach lends itself better to reuse than the web of objects. Secondly I think it is because you write pure functions with no side effects.</p>
+<h2>Summary</h2>
+<p>I had a pleasant weekend learning Haskell and I&#8217;m looking forward to learning more.</p>
+
+<hr />
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+    /* * * CONFIGURATION VARIABLES: EDIT BEFORE PASTING INTO YOUR WEBPAGE * * */
+    var disqus_shortname = 'reflectionsonprogramming'; // required: replace example with your forum shortname
+
+    /* * * DON'T EDIT BELOW THIS LINE * * */
+    (function() {
+        var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+        dsq.src = 'http://' + disqus_shortname + '.disqus.com/embed.js';
+        (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">blog comments powered by <span class="logo-disqus">Disqus</span></a>
+
+<hr />
+
+<p>Published 10 Oct 2011</p>
+
+<p><a href="/">Home</a></p>
+
+      </div>
+    </div>
+  </body>
+</html>

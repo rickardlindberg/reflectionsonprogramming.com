@@ -1,0 +1,237 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
+"http://www.w3.org/TR/html4/strict.dtd">
+<html>
+  <head>
+    <title>
+      A beautiful Brainfuck implementation | Reflections on Programming
+    </title>
+    <meta name="keywords" content="reflections, programming" />
+    <meta name="description" content="Reflections on various aspects of programming.">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <link rel="alternate" type="application/rss+xml" title="RSS 2.0" href="/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom 0.3" href="/atom.xml" />
+    <link rel="stylesheet" href="/css/blueprint/screen.css" type="text/css" media="screen, projection">
+    <link rel="stylesheet" href="/css/blueprint/print.css" type="text/css" media="print"> 
+    <!--[if lt IE 8]>
+      <link rel="stylesheet" href="/css/blueprint/ie.css" type="text/css" media="screen, projection">
+    <![endif]-->
+    <link rel="stylesheet" href="/css/pygments/syntax.css" type="text/css"> 
+    <link rel="stylesheet" href="/css/layout.css" type="text/css"> 
+    <link rel="stylesheet" href="/css/colors.css" type="text/css"> 
+  </head>
+  <body>
+    <div class="container noshowgrid">
+      <div class="span-20 prepend-2 append-2">
+        <h1>A beautiful Brainfuck implementation</h1>
+        <hr />
+        <p>Recently I&#8217;ve been writing interpreters for the Brainfuck programming language in Haskell. I&#8217;ve also held two workshops where I&#8217;ve taught Haskell, and in those workshops, the last exercise is to work on a Brainfuck interpreter.</p>
+<p>I&#8217;ve experimented with different solutions both to see what they feel like and also to see how they affect performance.</p>
+<p>The fifth version became particularly beautiful, and I shall share that beauty with you in this post. This version is inspired by ideas that <a href="http://raek.se/">raek</a> presented to me during and after a workshop.</p>
+<h2>The Brainfuck language</h2>
+<p>If you are not familiar with Brainfuck, go read on <a href="http://en.wikipedia.org/wiki/Brainfuck">Wikipedia</a>. I will not explain it here.</p>
+<h2>Haskell knowledge</h2>
+<p>I&#8217;m going to assume that you are a bit familiar with Haskell. If there is something in particular that you do not understand, feel free to ask in the comments.</p>
+<h2>The main function</h2>
+<p>The function we are implementing is this:</p>
+<div class="highlight"><pre><code class="haskell"><span class="nf">execute</span> <span class="ow">::</span> <span class="kt">String</span> <span class="ow">-&gt;</span> <span class="kt">IO</span> <span class="nb">()</span>
+<span class="nf">execute</span> <span class="n">program</span> <span class="ow">=</span> <span class="n">interact</span> <span class="p">(</span><span class="n">run</span> <span class="p">(</span><span class="n">compile</span> <span class="n">program</span><span class="p">)</span> <span class="n">emptyDataMap</span><span class="p">)</span>
+</code></pre>
+</div>
+<p>The Brainfuck program enters our <code>execute</code> function as a string. We compile the program to an internal representation and then <code>run</code> it together with a data tape, <code>emptyDataMap</code>, that holds the data for the Brainfuck program.</p>
+<p><code>interact</code> passes stdin to our <code>run</code> function and prints the output of it on stdout.</p>
+<h2>The data tape</h2>
+<p>We represent the Brainfuck data tape with a typeclass. That allows us to experiment with different data structures without changing the interpreter. The typeclass looks like this:</p>
+<div class="highlight"><pre><code class="haskell"><span class="kr">class</span> <span class="kt">Data</span> <span class="n">d</span> <span class="kr">where</span>
+    <span class="n">emptyData</span>       <span class="ow">::</span> <span class="n">d</span>
+    <span class="n">dataGet</span>         <span class="ow">::</span> <span class="n">d</span> <span class="ow">-&gt;</span> <span class="kt">Int</span>
+    <span class="n">dataModifyValue</span> <span class="ow">::</span> <span class="p">(</span><span class="kt">Int</span> <span class="ow">-&gt;</span> <span class="kt">Int</span><span class="p">)</span> <span class="ow">-&gt;</span> <span class="n">d</span> <span class="ow">-&gt;</span> <span class="n">d</span>
+    <span class="n">dataModifyPos</span>   <span class="ow">::</span> <span class="p">(</span><span class="kt">Int</span> <span class="ow">-&gt;</span> <span class="kt">Int</span><span class="p">)</span> <span class="ow">-&gt;</span> <span class="n">d</span> <span class="ow">-&gt;</span> <span class="n">d</span>
+</code></pre>
+</div>
+<p>First of all we need a way to create a data tape. Next we need a way to extract the integer at the current position. And finally we need to be able to change the value at the current position and also change the position itself.</p>
+<h3>A concrete implementation</h3>
+<p>A concrete implementation of this typeclass is presented below:</p>
+<div class="highlight"><pre><code class="haskell"><span class="kr">data</span> <span class="kt">DataMap</span> <span class="ow">=</span> <span class="kt">DataMap</span>
+    <span class="p">{</span> <span class="n">currentPos</span> <span class="ow">::</span> <span class="kt">Int</span>
+    <span class="p">,</span> <span class="n">values</span>     <span class="ow">::</span> <span class="kt">M</span><span class="o">.</span><span class="kt">Map</span> <span class="kt">Int</span> <span class="kt">Int</span>
+    <span class="p">}</span>
+
+<span class="nf">emptyDataMap</span> <span class="ow">::</span> <span class="kt">DataMap</span>
+<span class="nf">emptyDataMap</span> <span class="ow">=</span> <span class="kt">DataMap</span> <span class="mi">0</span> <span class="kt">M</span><span class="o">.</span><span class="n">empty</span>
+
+<span class="kr">instance</span> <span class="kt">Data</span> <span class="kt">DataMap</span> <span class="kr">where</span>
+    <span class="n">emptyData</span> <span class="ow">=</span> <span class="n">emptyDataMap</span>
+
+    <span class="n">dataGet</span> <span class="n">dat</span> <span class="ow">=</span> <span class="kt">M</span><span class="o">.</span><span class="n">findWithDefault</span> <span class="mi">0</span> <span class="p">(</span><span class="n">currentPos</span> <span class="n">dat</span><span class="p">)</span> <span class="p">(</span><span class="n">values</span> <span class="n">dat</span><span class="p">)</span>
+
+    <span class="n">dataModifyValue</span> <span class="n">fn</span> <span class="n">dat</span> <span class="ow">=</span> <span class="n">dat</span> <span class="p">{</span> <span class="n">values</span> <span class="ow">=</span> <span class="n">newValues</span> <span class="p">}</span>
+        <span class="kr">where</span>
+            <span class="n">oldValue</span>  <span class="ow">=</span> <span class="n">dataGet</span> <span class="n">dat</span>
+            <span class="n">newValues</span> <span class="ow">=</span> <span class="kt">M</span><span class="o">.</span><span class="n">insert</span> <span class="p">(</span><span class="n">currentPos</span> <span class="n">dat</span><span class="p">)</span> <span class="p">(</span><span class="n">fn</span> <span class="n">oldValue</span><span class="p">)</span> <span class="p">(</span><span class="n">values</span> <span class="n">dat</span><span class="p">)</span>
+
+    <span class="n">dataModifyPos</span> <span class="n">fn</span> <span class="n">dat</span> <span class="ow">=</span> <span class="n">dat</span> <span class="p">{</span> <span class="n">currentPos</span> <span class="ow">=</span> <span class="n">fn</span> <span class="p">(</span><span class="n">currentPos</span> <span class="n">dat</span><span class="p">)</span> <span class="p">}</span>
+</code></pre>
+</div>
+<p>The most interesting thing to note is that we use a <a href="http://www.haskell.org/ghc/docs/latest/html/libraries/containers/Data-Map.html">map</a> instead of a list structure. This makes it easy to create an infinite tape. If we ask for a value at a position that does not yet exist, we just return the default value 0.</p>
+<h3>General helper functions</h3>
+<p>To make it easier to work with the data tape, we have these general helper functions that only depend on the interface of the typeclass:</p>
+<div class="highlight"><pre><code class="haskell"><span class="nf">dataMoveRight</span> <span class="ow">::</span> <span class="kt">Data</span> <span class="n">d</span> <span class="ow">=&gt;</span> <span class="n">d</span> <span class="ow">-&gt;</span> <span class="n">d</span>
+<span class="nf">dataMoveRight</span> <span class="ow">=</span> <span class="n">dataModifyPos</span> <span class="n">inc</span>
+
+<span class="nf">dataMoveLeft</span> <span class="ow">::</span> <span class="kt">Data</span> <span class="n">d</span> <span class="ow">=&gt;</span> <span class="n">d</span> <span class="ow">-&gt;</span> <span class="n">d</span>
+<span class="nf">dataMoveLeft</span> <span class="ow">=</span> <span class="n">dataModifyPos</span> <span class="n">dec</span>
+
+<span class="nf">dataGetAscii</span> <span class="ow">::</span> <span class="kt">Data</span> <span class="n">d</span> <span class="ow">=&gt;</span> <span class="n">d</span> <span class="ow">-&gt;</span> <span class="kt">Char</span>
+<span class="nf">dataGetAscii</span> <span class="n">dat</span> <span class="ow">=</span> <span class="kt">C</span><span class="o">.</span><span class="n">chr</span> <span class="o">$</span> <span class="n">dataGet</span> <span class="n">dat</span>
+
+<span class="nf">dataWriteAscii</span> <span class="ow">::</span> <span class="kt">Data</span> <span class="n">d</span> <span class="ow">=&gt;</span> <span class="kt">Char</span> <span class="ow">-&gt;</span> <span class="n">d</span> <span class="ow">-&gt;</span> <span class="n">d</span>
+<span class="nf">dataWriteAscii</span> <span class="n">i</span> <span class="ow">=</span> <span class="n">dataModifyValue</span> <span class="p">(</span><span class="n">const</span> <span class="o">$</span> <span class="kt">C</span><span class="o">.</span><span class="n">ord</span> <span class="n">i</span><span class="p">)</span>
+
+<span class="nf">dataIncValue</span> <span class="ow">::</span> <span class="kt">Data</span> <span class="n">d</span> <span class="ow">=&gt;</span> <span class="n">d</span> <span class="ow">-&gt;</span> <span class="n">d</span>
+<span class="nf">dataIncValue</span> <span class="ow">=</span> <span class="n">dataModifyValue</span> <span class="n">inc</span>
+
+<span class="nf">dataDecValue</span> <span class="ow">::</span> <span class="kt">Data</span> <span class="n">d</span> <span class="ow">=&gt;</span> <span class="n">d</span> <span class="ow">-&gt;</span> <span class="n">d</span>
+<span class="nf">dataDecValue</span> <span class="ow">=</span> <span class="n">dataModifyValue</span> <span class="n">dec</span>
+
+<span class="nf">inc</span> <span class="ow">::</span> <span class="kt">Int</span> <span class="ow">-&gt;</span> <span class="kt">Int</span>
+<span class="nf">inc</span> <span class="ow">=</span> <span class="p">(</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
+
+<span class="nf">dec</span> <span class="ow">::</span> <span class="kt">Int</span> <span class="ow">-&gt;</span> <span class="kt">Int</span>
+<span class="nf">dec</span> <span class="n">x</span> <span class="ow">=</span> <span class="n">x</span> <span class="o">-</span> <span class="mi">1</span>
+</code></pre>
+</div>
+<h2>Compiling</h2>
+<p>With the data tape out of the way, let&#8217;s look at how a Brainfuck program is represented in Haskell. The source code is transformed in two steps: first the program is converted to a list of tokens, and then those tokens are converted to a sort of byte code that the <code>run</code> function interprets.</p>
+<p>Making this separation has the benefit that each function that does a transformation can focus on doing only one transformation. The parsing function only needs to deal with the problem of getting the structure of a Brainfuck program represented in Haskell, and does not have to know anything about how this later gets executed.</p>
+<h3>Parsing tokens</h3>
+<p>The data structure for tokens looks like this:</p>
+<div class="highlight"><pre><code class="haskell"><span class="kr">data</span> <span class="kt">Token</span>
+    <span class="ow">=</span> <span class="kt">TInc</span>
+    <span class="o">|</span> <span class="kt">TDec</span>
+    <span class="o">|</span> <span class="kt">TLeft</span>
+    <span class="o">|</span> <span class="kt">TRight</span>
+    <span class="o">|</span> <span class="kt">TPrint</span>
+    <span class="o">|</span> <span class="kt">TRead</span>
+    <span class="o">|</span> <span class="kt">TLoop</span> <span class="p">[</span><span class="kt">Token</span><span class="p">]</span>
+    <span class="kr">deriving</span> <span class="p">(</span><span class="kt">Show</span><span class="p">,</span> <span class="kt">Eq</span><span class="p">)</span>
+</code></pre>
+</div>
+<p>This is a tree-like structure where all tokens are leaves except for loops which in turn have a list of tokens inside of them.</p>
+<p>The function that converts a Brainfuck program to a list of tokens uses the <a href="http://legacy.cs.uu.nl/daan/parsec.html">Parsec</a> library and looks like this:</p>
+<div class="highlight"><pre><code class="haskell"><span class="nf">parseTokens</span> <span class="ow">::</span> <span class="kt">String</span> <span class="ow">-&gt;</span> <span class="p">[</span><span class="kt">Token</span><span class="p">]</span>
+<span class="nf">parseTokens</span> <span class="n">input</span> <span class="ow">=</span>
+    <span class="kr">case</span> <span class="n">parse</span> <span class="n">bfTokens</span> <span class="n">fileName</span> <span class="p">(</span><span class="n">removeComments</span> <span class="n">input</span><span class="p">)</span> <span class="kr">of</span>
+        <span class="kt">Left</span>  <span class="n">err</span> <span class="ow">-&gt;</span> <span class="ne">error</span> <span class="p">(</span><span class="n">show</span> <span class="n">err</span><span class="p">)</span>
+        <span class="kt">Right</span> <span class="n">x</span>   <span class="ow">-&gt;</span> <span class="n">x</span>
+    <span class="kr">where</span>
+        <span class="n">fileName</span> <span class="ow">::</span> <span class="kt">String</span>
+        <span class="n">fileName</span> <span class="ow">=</span> <span class="s">&quot;&quot;</span>
+        <span class="n">removeComments</span> <span class="ow">::</span> <span class="kt">String</span> <span class="ow">-&gt;</span> <span class="kt">String</span>
+        <span class="n">removeComments</span> <span class="ow">=</span> <span class="n">filter</span> <span class="p">(`</span><span class="n">elem</span><span class="p">`</span> <span class="s">&quot;+-&lt;&gt;.,[]&quot;</span><span class="p">)</span>
+        <span class="n">bfTokens</span> <span class="ow">::</span> <span class="kt">Parser</span> <span class="p">[</span><span class="kt">Token</span><span class="p">]</span>
+        <span class="n">bfTokens</span> <span class="ow">=</span> <span class="n">many</span> <span class="n">bfToken</span>
+        <span class="n">bfToken</span> <span class="ow">::</span> <span class="kt">Parser</span> <span class="kt">Token</span>
+        <span class="n">bfToken</span>  <span class="ow">=</span>  <span class="n">fmap</span> <span class="p">(</span><span class="n">const</span> <span class="kt">TInc</span><span class="p">)</span>   <span class="p">(</span><span class="n">char</span> <span class="sc">&#39;+&#39;</span><span class="p">)</span>
+                <span class="o">&lt;|&gt;</span> <span class="n">fmap</span> <span class="p">(</span><span class="n">const</span> <span class="kt">TDec</span><span class="p">)</span>   <span class="p">(</span><span class="n">char</span> <span class="sc">&#39;-&#39;</span><span class="p">)</span>
+                <span class="o">&lt;|&gt;</span> <span class="n">fmap</span> <span class="p">(</span><span class="n">const</span> <span class="kt">TLeft</span><span class="p">)</span>  <span class="p">(</span><span class="n">char</span> <span class="sc">&#39;&lt;&#39;</span><span class="p">)</span>
+                <span class="o">&lt;|&gt;</span> <span class="n">fmap</span> <span class="p">(</span><span class="n">const</span> <span class="kt">TRight</span><span class="p">)</span> <span class="p">(</span><span class="n">char</span> <span class="sc">&#39;&gt;&#39;</span><span class="p">)</span>
+                <span class="o">&lt;|&gt;</span> <span class="n">fmap</span> <span class="p">(</span><span class="n">const</span> <span class="kt">TPrint</span><span class="p">)</span> <span class="p">(</span><span class="n">char</span> <span class="sc">&#39;.&#39;</span><span class="p">)</span>
+                <span class="o">&lt;|&gt;</span> <span class="n">fmap</span> <span class="p">(</span><span class="n">const</span> <span class="kt">TRead</span><span class="p">)</span>  <span class="p">(</span><span class="n">char</span> <span class="sc">&#39;,&#39;</span><span class="p">)</span>
+                <span class="o">&lt;|&gt;</span> <span class="n">fmap</span> <span class="kt">TLoop</span>          <span class="p">(</span><span class="n">between</span> <span class="p">(</span><span class="n">char</span> <span class="sc">&#39;[&#39;</span><span class="p">)</span> <span class="p">(</span><span class="n">char</span> <span class="sc">&#39;]&#39;</span><span class="p">)</span>
+                                                 <span class="n">bfTokens</span><span class="p">)</span>
+</code></pre>
+</div>
+<p><code>bfTokens</code> is our parser. It parses a list of <code>bfToken</code>. <code>bfToken</code> defines a few cases saying that a token is either a plus, or a minus, and so on. The last case says: match a left bracket, then a list of tokens, then a right bracket, and put those tokens inside a <code>TLoop</code>.</p>
+<p>Our parser is run on the line with the case-expression. Parsing something with Parsec can either fail or succeed. If parsing fails, we call <code>error</code> and make the interpreter crash. If parsing succeeds, we return the result (which is a list of tokens).</p>
+<p>Before we pass the input string to the parser, we remove all comments by keeping only the characters from the input string that mean something in Brainfuck.</p>
+<h3>Converting tokens to byte code</h3>
+<p>The byte code that <code>run</code> interprets looks like this:</p>
+<div class="highlight"><pre><code class="haskell"><span class="kr">data</span> <span class="kt">ByteCode</span>
+    <span class="ow">=</span> <span class="kt">BInc</span>   <span class="kt">ByteCode</span>
+    <span class="o">|</span> <span class="kt">BDec</span>   <span class="kt">ByteCode</span>
+    <span class="o">|</span> <span class="kt">BLeft</span>  <span class="kt">ByteCode</span>
+    <span class="o">|</span> <span class="kt">BRight</span> <span class="kt">ByteCode</span>
+    <span class="o">|</span> <span class="kt">BPrint</span> <span class="kt">ByteCode</span>
+    <span class="o">|</span> <span class="kt">BRead</span>  <span class="kt">ByteCode</span>
+    <span class="o">|</span> <span class="kt">BLoop</span>  <span class="kt">ByteCode</span> <span class="kt">ByteCode</span>
+    <span class="o">|</span> <span class="kt">BEND</span>
+    <span class="kr">deriving</span> <span class="p">(</span><span class="kt">Show</span><span class="p">,</span> <span class="kt">Eq</span><span class="p">)</span>
+</code></pre>
+</div>
+<p>This is a recursive data type. Every byte code instruction except <code>BEND</code> contains the byte code instruction following it. The loop instruction has two byte codes to continue with: either we enter the loop or we continue after it.</p>
+<p>The function that converts tokens to byte code looks like this:</p>
+<div class="highlight"><pre><code class="haskell"><span class="nf">toByteCode</span> <span class="ow">::</span> <span class="p">[</span><span class="kt">Token</span><span class="p">]</span> <span class="ow">-&gt;</span> <span class="kt">ByteCode</span>
+<span class="nf">toByteCode</span> <span class="n">tokens</span> <span class="ow">=</span> <span class="n">toByteCode&#39;</span> <span class="n">tokens</span> <span class="kt">BEND</span>
+    <span class="kr">where</span>
+        <span class="n">toByteCode&#39;</span> <span class="ow">::</span> <span class="p">[</span><span class="kt">Token</span><span class="p">]</span> <span class="ow">-&gt;</span> <span class="kt">ByteCode</span> <span class="ow">-&gt;</span> <span class="kt">ByteCode</span>
+        <span class="n">toByteCode&#39;</span> <span class="kt">[]</span>            <span class="n">end</span> <span class="ow">=</span> <span class="n">end</span>
+        <span class="n">toByteCode&#39;</span> <span class="p">(</span><span class="kt">TInc</span>    <span class="kt">:</span><span class="n">xs</span><span class="p">)</span> <span class="n">end</span> <span class="ow">=</span> <span class="kt">BInc</span>   <span class="p">(</span><span class="n">toByteCode&#39;</span> <span class="n">xs</span> <span class="n">end</span><span class="p">)</span>
+        <span class="n">toByteCode&#39;</span> <span class="p">(</span><span class="kt">TDec</span>    <span class="kt">:</span><span class="n">xs</span><span class="p">)</span> <span class="n">end</span> <span class="ow">=</span> <span class="kt">BDec</span>   <span class="p">(</span><span class="n">toByteCode&#39;</span> <span class="n">xs</span> <span class="n">end</span><span class="p">)</span>
+        <span class="n">toByteCode&#39;</span> <span class="p">(</span><span class="kt">TLeft</span>   <span class="kt">:</span><span class="n">xs</span><span class="p">)</span> <span class="n">end</span> <span class="ow">=</span> <span class="kt">BLeft</span>  <span class="p">(</span><span class="n">toByteCode&#39;</span> <span class="n">xs</span> <span class="n">end</span><span class="p">)</span>
+        <span class="n">toByteCode&#39;</span> <span class="p">(</span><span class="kt">TRight</span>  <span class="kt">:</span><span class="n">xs</span><span class="p">)</span> <span class="n">end</span> <span class="ow">=</span> <span class="kt">BRight</span> <span class="p">(</span><span class="n">toByteCode&#39;</span> <span class="n">xs</span> <span class="n">end</span><span class="p">)</span>
+        <span class="n">toByteCode&#39;</span> <span class="p">(</span><span class="kt">TPrint</span>  <span class="kt">:</span><span class="n">xs</span><span class="p">)</span> <span class="n">end</span> <span class="ow">=</span> <span class="kt">BPrint</span> <span class="p">(</span><span class="n">toByteCode&#39;</span> <span class="n">xs</span> <span class="n">end</span><span class="p">)</span>
+        <span class="n">toByteCode&#39;</span> <span class="p">(</span><span class="kt">TRead</span>   <span class="kt">:</span><span class="n">xs</span><span class="p">)</span> <span class="n">end</span> <span class="ow">=</span> <span class="kt">BRead</span>  <span class="p">(</span><span class="n">toByteCode&#39;</span> <span class="n">xs</span> <span class="n">end</span><span class="p">)</span>
+        <span class="n">toByteCode&#39;</span> <span class="p">(</span><span class="kt">TLoop</span> <span class="n">ls</span><span class="kt">:</span><span class="n">xs</span><span class="p">)</span> <span class="n">end</span> <span class="ow">=</span> <span class="kr">let</span> <span class="n">inner</span> <span class="ow">=</span> <span class="n">toByteCode&#39;</span> <span class="n">ls</span> <span class="n">loop</span>
+                                            <span class="n">rest</span>  <span class="ow">=</span> <span class="n">toByteCode&#39;</span> <span class="n">xs</span> <span class="n">end</span>
+                                            <span class="n">loop</span>  <span class="ow">=</span> <span class="kt">BLoop</span> <span class="n">inner</span> <span class="n">rest</span>
+                                        <span class="kr">in</span>  <span class="n">loop</span>
+</code></pre>
+</div>
+<p>There is one special trick going on here, and that is in the last case where we create the loop instruction. <code>toByteCode'</code> takes as last argument the instruction that should be at the end. At the top level, we pass in <code>BEND</code>, but when creating the loop, we pass in the loop itself. So the last instruction of the loop links to the loop itself.</p>
+<p>Below is a picture of the byte code representation of this Brainfuck program &#8220;<code>.[-.]&gt;</code>&#8221;:</p>
+<p><img src="/images/brainfuck-byte-code.png" title="" alt="" /></p>
+<p>Compiling the whole program is just a matter of combining the parsing with the byte code convertion:</p>
+<div class="highlight"><pre><code class="haskell"><span class="nf">compile</span> <span class="ow">::</span> <span class="kt">String</span> <span class="ow">-&gt;</span> <span class="kt">ByteCode</span>
+<span class="nf">compile</span> <span class="ow">=</span> <span class="n">toByteCode</span> <span class="o">.</span> <span class="n">parseTokens</span>
+</code></pre>
+</div>
+<h2>Running byte code</h2>
+<p>The <code>run</code> function looks like this:</p>
+<div class="highlight"><pre><code class="haskell"><span class="nf">run</span> <span class="ow">::</span> <span class="kt">Data</span> <span class="n">d</span> <span class="ow">=&gt;</span> <span class="kt">ByteCode</span> <span class="ow">-&gt;</span> <span class="n">d</span> <span class="ow">-&gt;</span> <span class="kt">String</span> <span class="ow">-&gt;</span> <span class="kt">String</span>
+<span class="nf">run</span> <span class="kt">BEND</span>               <span class="n">dat</span> <span class="n">input</span>  <span class="ow">=</span> <span class="s">&quot;done!</span><span class="se">\n</span><span class="s">&quot;</span>
+<span class="nf">run</span> <span class="p">(</span><span class="kt">BInc</span>   <span class="n">next</span><span class="p">)</span>      <span class="n">dat</span> <span class="n">input</span>  <span class="ow">=</span>                      <span class="n">run</span> <span class="n">next</span> <span class="p">(</span><span class="n">dataIncValue</span> <span class="n">dat</span><span class="p">)</span>     <span class="n">input</span>
+<span class="nf">run</span> <span class="p">(</span><span class="kt">BDec</span>   <span class="n">next</span><span class="p">)</span>      <span class="n">dat</span> <span class="n">input</span>  <span class="ow">=</span>                      <span class="n">run</span> <span class="n">next</span> <span class="p">(</span><span class="n">dataDecValue</span> <span class="n">dat</span><span class="p">)</span>     <span class="n">input</span>
+<span class="nf">run</span> <span class="p">(</span><span class="kt">BLeft</span>  <span class="n">next</span><span class="p">)</span>      <span class="n">dat</span> <span class="n">input</span>  <span class="ow">=</span>                      <span class="n">run</span> <span class="n">next</span> <span class="p">(</span><span class="n">dataMoveLeft</span> <span class="n">dat</span><span class="p">)</span>     <span class="n">input</span>
+<span class="nf">run</span> <span class="p">(</span><span class="kt">BRight</span> <span class="n">next</span><span class="p">)</span>      <span class="n">dat</span> <span class="n">input</span>  <span class="ow">=</span>                      <span class="n">run</span> <span class="n">next</span> <span class="p">(</span><span class="n">dataMoveRight</span> <span class="n">dat</span><span class="p">)</span>    <span class="n">input</span>
+<span class="nf">run</span> <span class="p">(</span><span class="kt">BPrint</span> <span class="n">next</span><span class="p">)</span>      <span class="n">dat</span> <span class="n">input</span>  <span class="ow">=</span> <span class="p">(</span><span class="n">dataGetAscii</span> <span class="n">dat</span><span class="p">)</span> <span class="kt">:</span> <span class="n">run</span> <span class="n">next</span> <span class="n">dat</span>                    <span class="n">input</span>
+<span class="nf">run</span> <span class="p">(</span><span class="kt">BRead</span>  <span class="n">next</span><span class="p">)</span>      <span class="n">dat</span> <span class="p">(</span><span class="n">i</span><span class="kt">:</span><span class="n">is</span><span class="p">)</span> <span class="ow">=</span>                      <span class="n">run</span> <span class="n">next</span> <span class="p">(</span><span class="n">dataWriteAscii</span> <span class="n">i</span> <span class="n">dat</span><span class="p">)</span> <span class="n">is</span>
+<span class="nf">run</span> <span class="p">(</span><span class="kt">BLoop</span>  <span class="n">loop</span> <span class="n">next</span><span class="p">)</span> <span class="n">dat</span> <span class="n">input</span>
+    <span class="o">|</span> <span class="n">dataGet</span> <span class="n">dat</span> <span class="o">==</span> <span class="mi">0</span>            <span class="ow">=</span>                      <span class="n">run</span> <span class="n">next</span> <span class="n">dat</span>                    <span class="n">input</span>
+    <span class="o">|</span> <span class="n">otherwise</span>                   <span class="ow">=</span>                      <span class="n">run</span> <span class="n">loop</span> <span class="n">dat</span>                    <span class="n">input</span>
+</code></pre>
+</div>
+<p>It takes as input a byte code, the Brainfuck data tape, and the user input. The return value is a string which is the output of the program.</p>
+<p>The formatting reveals that there are only two byte codes which modify the output, and that is <code>BEND</code> and <code>BPrint</code>. In the same way, we can see that <code>BRead</code> is the only byte code that consumes input. All other byte codes just pass the input along to the next instruction. About half of the byte codes do something with the data tape. In those cases, a modified data tape is passed to the recursive call to <code>run</code>.</p>
+<p>When running a loop instruction, we examine the current value on data tape and decide which branch of instructions to continue with.</p>
+<h2>The beauty</h2>
+<p>I find this implementation beautiful because every piece of the program does one specific thing and the pieces are combined to form a whole. The program is also compact. But it&#8217;s not compact because text has been crammed together. It&#8217;s compact because combining different pieces in Haskell does not require much syntactic noise.</p>
+<p>Because I&#8217;ve never felt this kind of beauty in my object oriented code, I suspect that it is the way functional languages allow you to combine pieces that make them more beautiful to me.</p>
+<p>If you want to look closer at the source code or look at other implementations, it is up on <a href="https://github.com/rickardlindberg/brainfuck">github</a>.</p>
+
+<hr />
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+    /* * * CONFIGURATION VARIABLES: EDIT BEFORE PASTING INTO YOUR WEBPAGE * * */
+    var disqus_shortname = 'reflectionsonprogramming'; // required: replace example with your forum shortname
+
+    /* * * DON'T EDIT BELOW THIS LINE * * */
+    (function() {
+        var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+        dsq.src = 'http://' + disqus_shortname + '.disqus.com/embed.js';
+        (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">blog comments powered by <span class="logo-disqus">Disqus</span></a>
+
+<hr />
+
+<p>Published 17 Jun 2012</p>
+
+<p><a href="/">Home</a></p>
+
+      </div>
+    </div>
+  </body>
+</html>

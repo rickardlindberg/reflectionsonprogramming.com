@@ -1,0 +1,833 @@
+<?xml version="1.0"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+
+  <channel>
+    <title>reflectionsonprogramming.com</title>
+    <link>http://reflectionsonprogramming.com/</link>
+    <atom:link href="http://reflectionsonprogramming.com/rss.xml" rel="self" type="application/rss+xml" />
+    <description>My reflections on programming.</description>
+    <language>en-us</language>
+    <pubDate>Wed, 18 Jul 2012 14:04:51 +0200</pubDate>
+    <lastBuildDate>Wed, 18 Jul 2012 14:04:51 +0200</lastBuildDate>
+
+    
+    <item>
+      <title>A refactoring story</title>
+      <link>http://reflectionsonprogramming.com/2012/07/a-refactoring-story</link>
+      <pubDate>Wed, 11 Jul 2012 00:00:00 +0200</pubDate>
+      <author>ricli85@gmail.com (Rickard Lindberg)</author>
+      <guid>http://reflectionsonprogramming.com/2012/07/a-refactoring-story</guid>
+      <description>&lt;p&gt;This story begins in a hotel lobby in Stockholm. That&amp;#8217;s where &lt;a href=&quot;http://coreyhaines.com/&quot;&gt;Corey Haines&lt;/a&gt; and I met a Monday afternoon to code some Haskell. I had invited Corey to a Haskell workshop I hosted the week before, but unfortunately he couldn&amp;#8217;t make it. I didn&amp;#8217;t want to miss the opportunity to get together with him, so that&amp;#8217;s why I found myself with a beer and my laptop, walking through the code for &lt;a href=&quot;http://github.com/rickardlindberg/codemonitor&quot;&gt;codemonitor&lt;/a&gt;, explaining it to Corey, this Monday afternoon in a hotel lobby in Stockholm.&lt;/p&gt;
+&lt;p&gt;Codemonitor is a Haskell application I&amp;#8217;ve written that listens for file changes on disk. When a file changes, it runs a set of jobs that you configure. It can for example be used to automatically run your test suite whenever you change a source file.&lt;/p&gt;
+&lt;p&gt;I had an idea for a feature we could work on this afternoon, but we ended up doing a big refactoring instead. In this post I explain how starting out slightly different helped us move forward.&lt;/p&gt;
+&lt;h2&gt;The goal of the refactoring&lt;/h2&gt;
+&lt;p&gt;Internally, codemonitor maintains a list of jobs. The job data structure has the following fields:&lt;/p&gt;
+&lt;ul&gt;
+	&lt;li&gt;Id&lt;/li&gt;
+	&lt;li&gt;Name of executable&lt;/li&gt;
+	&lt;li&gt;Arguments to executable&lt;/li&gt;
+	&lt;li&gt;Match expression&lt;/li&gt;
+	&lt;li&gt;Status (either idle, working, or failed)&lt;/li&gt;
+	&lt;li&gt;Output&lt;/li&gt;
+	&lt;li&gt;Thread id&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;The first four fields are static and describe the job. Match expression is a regular expression that is applied to a filename to determine if this job should run when a file changes.&lt;/p&gt;
+&lt;p&gt;The three last fields are dynamic and change values as a job run. A job has different status depending on if it is running or if it has finished running and failed for example.&lt;/p&gt;
+&lt;p&gt;Whenever a file changes on disk, we go through the list of jobs and update the ones for which the regular expression match. Pseudo code for a file change looks like this:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;python&quot;&gt;&lt;span class=&quot;k&quot;&gt;def&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;fileChanged&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;fileName&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;):&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;job&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;in&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;jobList&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;
+        &lt;span class=&quot;k&quot;&gt;if&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;job&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;matchExpr&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;matches&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;fileName&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;
+            &lt;span class=&quot;n&quot;&gt;thredId&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;runExternalProcess&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;job&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;name&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;job&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;args&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+            &lt;span class=&quot;n&quot;&gt;job&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;status&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;working&lt;/span&gt;
+            &lt;span class=&quot;n&quot;&gt;job&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;output&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&amp;quot;&amp;quot;&lt;/span&gt;
+            &lt;span class=&quot;n&quot;&gt;job&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;thread&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;threadId&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;Corey thought it would be better to split the job list into two parts: one that contained the static information about jobs, and one that contained the dynamic information about jobs. With this separation, when a file changes on disk we can first filter out the jobs for which the regular expression match, and then pass them to a function which run them. In pseudo code it looks like this:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;python&quot;&gt;&lt;span class=&quot;k&quot;&gt;def&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;fileChanged&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;fileName&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;):&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;jobsToRun&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;filterJobsMatching&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;fileName&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;job&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;in&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;jobsToRun&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;thredId&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;runExternalProcess&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;job&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;name&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;job&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;args&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;runningJob&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;RunningJob&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;status&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;working&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;output&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;quot;&amp;quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;thread&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;threadId&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;updateRunningJobList&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;runningJob&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;job&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;id&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;h2&gt;The refactoring process&lt;/h2&gt;
+&lt;p&gt;We had codemonitor running on itself at all times while doing this refactoring. As soon as we made a change that broke the code (either so it did not compile or so that the tests didn&amp;#8217;t pass) we got notified with a big red screen and an error message.&lt;/p&gt;
+&lt;h2&gt;The initial attempt&lt;/h2&gt;
+&lt;p&gt;We started by creating a new data structure for the dynamic part of a job that we called running job info. It had the following fields:&lt;/p&gt;
+&lt;ul&gt;
+	&lt;li&gt;Status (either idle, working, or failed)&lt;/li&gt;
+	&lt;li&gt;Output&lt;/li&gt;
+	&lt;li&gt;Thread id&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;We removed those fields from the job data structure so that it only contained the static part:&lt;/p&gt;
+&lt;ul&gt;
+	&lt;li&gt;Id&lt;/li&gt;
+	&lt;li&gt;Name of executable&lt;/li&gt;
+	&lt;li&gt;Arguments to executable&lt;/li&gt;
+	&lt;li&gt;Match expression&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Then we found the places in the source code where the job data structure was used. We examined those cases and figured out if only the static, only the dynamic, or both parts were needed. We found a few functions where only the dynamic part of a job was used. We selected one of those and changed the type to take the running job info data structure instead of the old job data structure.&lt;/p&gt;
+&lt;p&gt;That of course led to compilation errors because the function was still called with the wrong data. (We had just changed the type signature.) So we followed the error messages and fixed the places where the calls were made.&lt;/p&gt;
+&lt;p&gt;Unfortunately, this approach wasn&amp;#8217;t very successful. The compiler kept giving us new type checking errors. That first change had forced us to change in a lot of places in order to get it to compile. We kept thinking that we only needed to change these current errors, and everything would be fine. The problem was that we had been thinking that for the last hour or so.&lt;/p&gt;
+&lt;h2&gt;Starting out in a different way&lt;/h2&gt;
+&lt;p&gt;Clearly, the steps we had tried to take weren&amp;#8217;t small enough. So we decided to start over using a different approach.&lt;/p&gt;
+&lt;p&gt;Instead of splitting the job data structure, we added another field to it containing the dynamic part. The addition of the additional field broke one place in the code where the job data structure was created, but other than that, we were green. We were relieved that we had a change that didn&amp;#8217;t break the build and we could do our first commit of the day. Whew!&lt;/p&gt;
+&lt;p&gt;At this point our data structure for jobs looked like this:&lt;/p&gt;
+&lt;ul&gt;
+	&lt;li&gt;Id&lt;/li&gt;
+	&lt;li&gt;Name of executable&lt;/li&gt;
+	&lt;li&gt;Arguments to executable&lt;/li&gt;
+	&lt;li&gt;Match expression&lt;/li&gt;
+	&lt;li&gt;Status (either idle, working, or failed)&lt;/li&gt;
+	&lt;li&gt;Output&lt;/li&gt;
+	&lt;li&gt;Thread id&lt;/li&gt;
+	&lt;li&gt;&lt;b&gt;Running job info&lt;/b&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;And the data structure for running job info looked like this:&lt;/p&gt;
+&lt;ul&gt;
+	&lt;li&gt;Status (either idle, working, or failed)&lt;/li&gt;
+	&lt;li&gt;Output&lt;/li&gt;
+	&lt;li&gt;Thread id&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Notice that we chose to duplicate the dynamic part in running job info. If we instead had moved fields into running job info, we would have more compilation errors, but we wanted to minimize the errors so we could work in small steps.&lt;/p&gt;
+&lt;p&gt;The next thing we did was to always update the running job info when we updated the dynamic fields in the job data structure. With this change, we could read the dynamic fields from the running job info instead of the job data structure. We did that, and eventually we had removed all dependencies on the dynamic fields in the job data structure, so they could be removed, leaving only these fields:&lt;/p&gt;
+&lt;ul&gt;
+	&lt;li&gt;Id&lt;/li&gt;
+	&lt;li&gt;Name of executable&lt;/li&gt;
+	&lt;li&gt;Arguments to executable&lt;/li&gt;
+	&lt;li&gt;Match expression&lt;/li&gt;
+	&lt;li&gt;Running job info&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Around this point we had to stop. It was time for dinner, and we were feeling happy about the progress we had made.&lt;/p&gt;
+&lt;p&gt;The next day, I continued the refactoring on my own. Everything went smoothly following this path: I was able to pull the running job info out of the job data structure into its own list, realized that the running job info didn&amp;#8217;t need to contain all that information, shrunk it, and as a result I could simplify another subsystem.&lt;/p&gt;
+&lt;h2&gt;Conclusion&lt;/h2&gt;
+&lt;p&gt;Because we started the refactoring in a slightly different way the second time, we were able to take small steps towards the goal while all the time having working code.&lt;/p&gt;
+&lt;p&gt;If you feel stuck with a refactoring, you might want to start it out in a different way to see what happens.&lt;/p&gt;</description>
+    </item>
+    
+    <item>
+      <title>Data structures in OOP</title>
+      <link>http://reflectionsonprogramming.com/2012/06/data-structures-in-oop</link>
+      <pubDate>Sat, 23 Jun 2012 00:00:00 +0200</pubDate>
+      <author>ricli85@gmail.com (Rickard Lindberg)</author>
+      <guid>http://reflectionsonprogramming.com/2012/06/data-structures-in-oop</guid>
+      <description>&lt;p&gt;&lt;em&gt;This post was originally published 16 January 2011 with addition of Clojure note 22 January 2011. The site it was published on is no longer active, and I therefore decided to move the post over here.&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;This post discusses how you can represent and edit data structures in an object oriented programming language.&lt;/p&gt;
+&lt;h2&gt;An example data structure&lt;/h2&gt;
+&lt;p&gt;The data structure we will use for our discussion is one that represents a set of events:&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/images/event-data-structure.png&quot; title=&quot;&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;Some rules about this data structure:&lt;/p&gt;
+&lt;ul&gt;
+	&lt;li&gt;The category of an event is optional&lt;/li&gt;
+	&lt;li&gt;Many events can have the same category&lt;/li&gt;
+	&lt;li&gt;Two categories with the same name are forbidden&lt;/li&gt;
+	&lt;li&gt;Two events with the exact same properties are allowed&lt;/li&gt;
+	&lt;li&gt;When a category is edited, all events belonging to that category should get updated&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Operating at the data structure level&lt;/h2&gt;
+&lt;p&gt;In order to ensure that the rules of the data structure hold at all times, all operations that modifies the data structure must be done at the highest level.&lt;/p&gt;
+&lt;p&gt;We can&amp;#8217;t for example modify a category in isolation because a category doesn&amp;#8217;t know about other categories and we can thus not make sure that we give it a unique name.&lt;/p&gt;
+&lt;h2&gt;The interface&lt;/h2&gt;
+&lt;p&gt;The interface for working with this data structure looks like this:&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/images/events-interface.png&quot; title=&quot;&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;A typical session looks like this:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;python&quot;&gt;&lt;span class=&quot;n&quot;&gt;events&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Events&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;quot;path/to/events.txt&amp;quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;firstEvent&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;events&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;getAllEvents&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;()[&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;firstEvent&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;text&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&amp;quot;a new text&amp;quot;&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;events&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;saveEvent&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;firstEvent&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;Or like this:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;python&quot;&gt;&lt;span class=&quot;n&quot;&gt;events&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Events&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;quot;path/to/events.txt&amp;quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;firstEvent&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;events&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;getAllEvents&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;()[&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;events&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;deleteCategory&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;firstEvent&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;category&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;The &lt;code&gt;Events&lt;/code&gt; object knows about the rules of the data structure and ensures that they are followed.&lt;/p&gt;
+&lt;h2&gt;The issue with mutable objects&lt;/h2&gt;
+&lt;p&gt;Consider the following session:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;python&quot;&gt;&lt;span class=&quot;n&quot;&gt;events&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Events&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;quot;path/to/events.txt&amp;quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;firstCategory&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;events&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;getAllCategories&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;()[&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;firstCategory&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;name&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&amp;quot;new name&amp;quot;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;At first, it looks like it doesn&amp;#8217;t do much. But consider the case when &lt;code&gt;firstCategory&lt;/code&gt; is a mutable object. When we change the name, the data structure will also be aware of this new name since &lt;code&gt;firstCategory&lt;/code&gt; refers to the same object that the data structure knows about and that was sent in return to &lt;code&gt;getAllCategories()&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;So we might actually corrupt the data structure if we assign a new name to the category that is already in use by another category. Most likely it is the &lt;code&gt;saveCategory&lt;/code&gt; method that performs this check. But since that method was never called (and the data structure was still modified), we end up with a corrupt data structure.&lt;/p&gt;
+&lt;h2&gt;Let&amp;#8217;s make them immutable&lt;/h2&gt;
+&lt;p&gt;One solution is to make our objects immutable. In order to change a property in an event or a category, we have to create a new object with our desired values.  This way, the objects returned from &lt;code&gt;getAllEvents()&lt;/code&gt; and &lt;code&gt;getAllCategories()&lt;/code&gt; can never be changed.&lt;/p&gt;
+&lt;p&gt;We could write helper methods like &lt;code&gt;setName&lt;/code&gt; that returns a new &lt;code&gt;Event&lt;/code&gt; that has all the values from the previous one but the name different:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;python&quot;&gt;&lt;span class=&quot;n&quot;&gt;events&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Events&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;quot;path/to/events.txt&amp;quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;firstCategory&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;events&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;getAllCategories&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;()[&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;firstCategoryEdited&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;firstCategory&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;setName&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;quot;new name&amp;quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;events&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;saveCategory&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;firstCategoryEdited&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;Here a call to &lt;code&gt;saveCategory&lt;/code&gt; is necessary for the data structure to find out about the edited category.&lt;/p&gt;
+&lt;h2&gt;What about updates?&lt;/h2&gt;
+&lt;p&gt;All save methods in &lt;code&gt;Events&lt;/code&gt; are supposed to add a new object if the object passed in does not already exist in the data structure. Otherwise they are supposed to update the individual object in the data structure.&lt;/p&gt;
+&lt;p&gt;This does not work so well with immutable objects. Consider the &lt;code&gt;saveCategory&lt;/code&gt; call that we did in the previous session. There is no way for the data structure to know if the category already exists.&lt;/p&gt;
+&lt;p&gt;One solution could be to pass in two categories in the save method: the old one and the new one. Then the data structure can replace all occurrences of the old category with the new one.&lt;/p&gt;
+&lt;p&gt;As we will see next, this solution does not work for events.&lt;/p&gt;
+&lt;h2&gt;The issue with object identity&lt;/h2&gt;
+&lt;p&gt;Now that we have immutable objects, the only way to distinguish one object from another is to look at the individual fields. Two categories are for example considered to be the same if both the name and the color are equal.&lt;/p&gt;
+&lt;p&gt;This causes a problem with events. One rule was that we could have two events with the exact same fields. But when we edit one, the other should not be changed:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;python&quot;&gt;&lt;span class=&quot;n&quot;&gt;events&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Events&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;quot;path/to/events.txt&amp;quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;events&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;saveEvent&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Event&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;quot;July 5&amp;quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&amp;quot;my birthday&amp;quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;),&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;original&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;bp&quot;&gt;None&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;events&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;saveEvent&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;Event&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;quot;July 5&amp;quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&amp;quot;my birthday&amp;quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;),&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;original&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;bp&quot;&gt;None&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;birthday&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;events&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;getAllEvents&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;()[&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt;
+&lt;span class=&quot;n&quot;&gt;event&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;saveEvent&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;birthday&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;setTime&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;quot;July 6&amp;quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;),&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;original&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;birthday&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;After this session we should have two events: one on July 5 and one on July 6.  But when we save (assuming the save now also takes the original so it knows what to replace) we can not know that only the first event should be updated.  So we end up with two events on both July 6.&lt;/p&gt;
+&lt;p&gt;The solution is to introduce an id field in the &lt;code&gt;Event&lt;/code&gt; object so that we can distinguish two events that has the exact same properties.&lt;/p&gt;
+&lt;h2&gt;Id fields don&amp;#8217;t feel very OO&lt;/h2&gt;
+&lt;p&gt;Introducing id fields does not seem very object oriented. But I can&amp;#8217;t think of another way to solve this problem.&lt;/p&gt;
+&lt;p&gt;The problem is very centered around editing data. Each individual field is interesting to modify. Perhaps OO is not suited for this kind of problem.&lt;/p&gt;
+&lt;p&gt;I would be interested in seeing other approaches to solving this problem. Is there a more object oriented solution? How do you solve this problem in a functional language (where immutable data is more common)?&lt;/p&gt;
+&lt;p&gt;&lt;a href=&quot;http://en.wikipedia.org/wiki/Clojure&quot;&gt;Clojure&lt;/a&gt; seems to have a model where you can separate the object identity from the object data. I&amp;#8217;m not sure how, or if, it can be applied to an object oriented programming language. You can read more at &lt;a href=&quot;http://clojure.org/state&quot;&gt;Values and Change &amp;#8211; Clojure&amp;#8217;s approach to Identity and State&lt;/a&gt;.&lt;/p&gt;</description>
+    </item>
+    
+    <item>
+      <title>A beautiful Brainfuck implementation</title>
+      <link>http://reflectionsonprogramming.com/2012/06/a-beautiful-brainfuck-implementation</link>
+      <pubDate>Sun, 17 Jun 2012 00:00:00 +0200</pubDate>
+      <author>ricli85@gmail.com (Rickard Lindberg)</author>
+      <guid>http://reflectionsonprogramming.com/2012/06/a-beautiful-brainfuck-implementation</guid>
+      <description>&lt;p&gt;Recently I&amp;#8217;ve been writing interpreters for the Brainfuck programming language in Haskell. I&amp;#8217;ve also held two workshops where I&amp;#8217;ve taught Haskell, and in those workshops, the last exercise is to work on a Brainfuck interpreter.&lt;/p&gt;
+&lt;p&gt;I&amp;#8217;ve experimented with different solutions both to see what they feel like and also to see how they affect performance.&lt;/p&gt;
+&lt;p&gt;The fifth version became particularly beautiful, and I shall share that beauty with you in this post. This version is inspired by ideas that &lt;a href=&quot;http://raek.se/&quot;&gt;raek&lt;/a&gt; presented to me during and after a workshop.&lt;/p&gt;
+&lt;h2&gt;The Brainfuck language&lt;/h2&gt;
+&lt;p&gt;If you are not familiar with Brainfuck, go read on &lt;a href=&quot;http://en.wikipedia.org/wiki/Brainfuck&quot;&gt;Wikipedia&lt;/a&gt;. I will not explain it here.&lt;/p&gt;
+&lt;h2&gt;Haskell knowledge&lt;/h2&gt;
+&lt;p&gt;I&amp;#8217;m going to assume that you are a bit familiar with Haskell. If there is something in particular that you do not understand, feel free to ask in the comments.&lt;/p&gt;
+&lt;h2&gt;The main function&lt;/h2&gt;
+&lt;p&gt;The function we are implementing is this:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;haskell&quot;&gt;&lt;span class=&quot;nf&quot;&gt;execute&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;::&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;String&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;IO&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;()&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;execute&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;program&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;interact&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;run&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;compile&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;program&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;emptyDataMap&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;The Brainfuck program enters our &lt;code&gt;execute&lt;/code&gt; function as a string. We compile the program to an internal representation and then &lt;code&gt;run&lt;/code&gt; it together with a data tape, &lt;code&gt;emptyDataMap&lt;/code&gt;, that holds the data for the Brainfuck program.&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;interact&lt;/code&gt; passes stdin to our &lt;code&gt;run&lt;/code&gt; function and prints the output of it on stdout.&lt;/p&gt;
+&lt;h2&gt;The data tape&lt;/h2&gt;
+&lt;p&gt;We represent the Brainfuck data tape with a typeclass. That allows us to experiment with different data structures without changing the interpreter. The typeclass looks like this:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;haskell&quot;&gt;&lt;span class=&quot;kr&quot;&gt;class&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;Data&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;d&lt;/span&gt; &lt;span class=&quot;kr&quot;&gt;where&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;emptyData&lt;/span&gt;       &lt;span class=&quot;ow&quot;&gt;::&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;d&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;dataGet&lt;/span&gt;         &lt;span class=&quot;ow&quot;&gt;::&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;d&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;Int&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;dataModifyValue&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;::&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;Int&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;Int&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;d&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;d&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;dataModifyPos&lt;/span&gt;   &lt;span class=&quot;ow&quot;&gt;::&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;Int&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;Int&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;d&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;d&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;First of all we need a way to create a data tape. Next we need a way to extract the integer at the current position. And finally we need to be able to change the value at the current position and also change the position itself.&lt;/p&gt;
+&lt;h3&gt;A concrete implementation&lt;/h3&gt;
+&lt;p&gt;A concrete implementation of this typeclass is presented below:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;haskell&quot;&gt;&lt;span class=&quot;kr&quot;&gt;data&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;DataMap&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;DataMap&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;currentPos&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;::&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;Int&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;values&lt;/span&gt;     &lt;span class=&quot;ow&quot;&gt;::&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;M&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;Map&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;Int&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;Int&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+
+&lt;span class=&quot;nf&quot;&gt;emptyDataMap&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;::&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;DataMap&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;emptyDataMap&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;DataMap&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;M&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;empty&lt;/span&gt;
+
+&lt;span class=&quot;kr&quot;&gt;instance&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;Data&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;DataMap&lt;/span&gt; &lt;span class=&quot;kr&quot;&gt;where&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;emptyData&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;emptyDataMap&lt;/span&gt;
+
+    &lt;span class=&quot;n&quot;&gt;dataGet&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dat&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;M&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;findWithDefault&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;currentPos&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dat&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;values&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dat&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+
+    &lt;span class=&quot;n&quot;&gt;dataModifyValue&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;fn&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dat&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dat&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;values&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;newValues&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+        &lt;span class=&quot;kr&quot;&gt;where&lt;/span&gt;
+            &lt;span class=&quot;n&quot;&gt;oldValue&lt;/span&gt;  &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dataGet&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dat&lt;/span&gt;
+            &lt;span class=&quot;n&quot;&gt;newValues&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;M&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;insert&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;currentPos&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dat&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;fn&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;oldValue&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;values&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dat&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+
+    &lt;span class=&quot;n&quot;&gt;dataModifyPos&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;fn&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dat&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dat&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;{&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;currentPos&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;fn&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;currentPos&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dat&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;The most interesting thing to note is that we use a &lt;a href=&quot;http://www.haskell.org/ghc/docs/latest/html/libraries/containers/Data-Map.html&quot;&gt;map&lt;/a&gt; instead of a list structure. This makes it easy to create an infinite tape. If we ask for a value at a position that does not yet exist, we just return the default value 0.&lt;/p&gt;
+&lt;h3&gt;General helper functions&lt;/h3&gt;
+&lt;p&gt;To make it easier to work with the data tape, we have these general helper functions that only depend on the interface of the typeclass:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;haskell&quot;&gt;&lt;span class=&quot;nf&quot;&gt;dataMoveRight&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;::&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;Data&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;d&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;d&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;d&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;dataMoveRight&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dataModifyPos&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;inc&lt;/span&gt;
+
+&lt;span class=&quot;nf&quot;&gt;dataMoveLeft&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;::&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;Data&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;d&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;d&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;d&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;dataMoveLeft&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dataModifyPos&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dec&lt;/span&gt;
+
+&lt;span class=&quot;nf&quot;&gt;dataGetAscii&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;::&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;Data&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;d&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;d&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;Char&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;dataGetAscii&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dat&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;C&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;chr&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;$&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dataGet&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dat&lt;/span&gt;
+
+&lt;span class=&quot;nf&quot;&gt;dataWriteAscii&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;::&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;Data&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;d&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&amp;gt;&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;Char&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;d&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;d&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;dataWriteAscii&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;i&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dataModifyValue&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;const&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;$&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;C&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;ord&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;i&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+
+&lt;span class=&quot;nf&quot;&gt;dataIncValue&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;::&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;Data&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;d&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;d&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;d&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;dataIncValue&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dataModifyValue&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;inc&lt;/span&gt;
+
+&lt;span class=&quot;nf&quot;&gt;dataDecValue&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;::&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;Data&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;d&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;d&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;d&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;dataDecValue&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dataModifyValue&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dec&lt;/span&gt;
+
+&lt;span class=&quot;nf&quot;&gt;inc&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;::&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;Int&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;Int&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;inc&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+
+&lt;span class=&quot;nf&quot;&gt;dec&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;::&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;Int&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;Int&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;dec&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;x&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;x&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;-&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;h2&gt;Compiling&lt;/h2&gt;
+&lt;p&gt;With the data tape out of the way, let&amp;#8217;s look at how a Brainfuck program is represented in Haskell. The source code is transformed in two steps: first the program is converted to a list of tokens, and then those tokens are converted to a sort of byte code that the &lt;code&gt;run&lt;/code&gt; function interprets.&lt;/p&gt;
+&lt;p&gt;Making this separation has the benefit that each function that does a transformation can focus on doing only one transformation. The parsing function only needs to deal with the problem of getting the structure of a Brainfuck program represented in Haskell, and does not have to know anything about how this later gets executed.&lt;/p&gt;
+&lt;h3&gt;Parsing tokens&lt;/h3&gt;
+&lt;p&gt;The data structure for tokens looks like this:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;haskell&quot;&gt;&lt;span class=&quot;kr&quot;&gt;data&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;Token&lt;/span&gt;
+    &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;TInc&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;|&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;TDec&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;|&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;TLeft&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;|&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;TRight&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;|&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;TPrint&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;|&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;TRead&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;|&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;TLoop&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;Token&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt;
+    &lt;span class=&quot;kr&quot;&gt;deriving&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;Show&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;Eq&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;This is a tree-like structure where all tokens are leaves except for loops which in turn have a list of tokens inside of them.&lt;/p&gt;
+&lt;p&gt;The function that converts a Brainfuck program to a list of tokens uses the &lt;a href=&quot;http://legacy.cs.uu.nl/daan/parsec.html&quot;&gt;Parsec&lt;/a&gt; library and looks like this:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;haskell&quot;&gt;&lt;span class=&quot;nf&quot;&gt;parseTokens&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;::&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;String&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;Token&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;parseTokens&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;input&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt;
+    &lt;span class=&quot;kr&quot;&gt;case&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;parse&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;bfTokens&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;fileName&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;removeComments&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;input&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;kr&quot;&gt;of&lt;/span&gt;
+        &lt;span class=&quot;kt&quot;&gt;Left&lt;/span&gt;  &lt;span class=&quot;n&quot;&gt;err&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;ne&quot;&gt;error&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;show&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;err&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+        &lt;span class=&quot;kt&quot;&gt;Right&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;x&lt;/span&gt;   &lt;span class=&quot;ow&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;x&lt;/span&gt;
+    &lt;span class=&quot;kr&quot;&gt;where&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;fileName&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;::&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;String&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;fileName&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&amp;quot;&amp;quot;&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;removeComments&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;::&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;String&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;String&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;removeComments&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;filter&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(`&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;elem&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;`&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&amp;quot;+-&amp;lt;&amp;gt;.,[]&amp;quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;bfTokens&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;::&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;Parser&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;Token&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;bfTokens&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;many&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;bfToken&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;bfToken&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;::&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;Parser&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;Token&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;bfToken&lt;/span&gt;  &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt;  &lt;span class=&quot;n&quot;&gt;fmap&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;const&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;TInc&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;   &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;char&lt;/span&gt; &lt;span class=&quot;sc&quot;&gt;&amp;#39;+&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+                &lt;span class=&quot;o&quot;&gt;&amp;lt;|&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;fmap&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;const&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;TDec&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;   &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;char&lt;/span&gt; &lt;span class=&quot;sc&quot;&gt;&amp;#39;-&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+                &lt;span class=&quot;o&quot;&gt;&amp;lt;|&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;fmap&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;const&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;TLeft&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;  &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;char&lt;/span&gt; &lt;span class=&quot;sc&quot;&gt;&amp;#39;&amp;lt;&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+                &lt;span class=&quot;o&quot;&gt;&amp;lt;|&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;fmap&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;const&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;TRight&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;char&lt;/span&gt; &lt;span class=&quot;sc&quot;&gt;&amp;#39;&amp;gt;&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+                &lt;span class=&quot;o&quot;&gt;&amp;lt;|&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;fmap&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;const&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;TPrint&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;char&lt;/span&gt; &lt;span class=&quot;sc&quot;&gt;&amp;#39;.&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+                &lt;span class=&quot;o&quot;&gt;&amp;lt;|&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;fmap&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;const&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;TRead&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;  &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;char&lt;/span&gt; &lt;span class=&quot;sc&quot;&gt;&amp;#39;,&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+                &lt;span class=&quot;o&quot;&gt;&amp;lt;|&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;fmap&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;TLoop&lt;/span&gt;          &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;between&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;char&lt;/span&gt; &lt;span class=&quot;sc&quot;&gt;&amp;#39;[&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;char&lt;/span&gt; &lt;span class=&quot;sc&quot;&gt;&amp;#39;]&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+                                                 &lt;span class=&quot;n&quot;&gt;bfTokens&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;&lt;code&gt;bfTokens&lt;/code&gt; is our parser. It parses a list of &lt;code&gt;bfToken&lt;/code&gt;. &lt;code&gt;bfToken&lt;/code&gt; defines a few cases saying that a token is either a plus, or a minus, and so on. The last case says: match a left bracket, then a list of tokens, then a right bracket, and put those tokens inside a &lt;code&gt;TLoop&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;Our parser is run on the line with the case-expression. Parsing something with Parsec can either fail or succeed. If parsing fails, we call &lt;code&gt;error&lt;/code&gt; and make the interpreter crash. If parsing succeeds, we return the result (which is a list of tokens).&lt;/p&gt;
+&lt;p&gt;Before we pass the input string to the parser, we remove all comments by keeping only the characters from the input string that mean something in Brainfuck.&lt;/p&gt;
+&lt;h3&gt;Converting tokens to byte code&lt;/h3&gt;
+&lt;p&gt;The byte code that &lt;code&gt;run&lt;/code&gt; interprets looks like this:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;haskell&quot;&gt;&lt;span class=&quot;kr&quot;&gt;data&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;ByteCode&lt;/span&gt;
+    &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;BInc&lt;/span&gt;   &lt;span class=&quot;kt&quot;&gt;ByteCode&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;|&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;BDec&lt;/span&gt;   &lt;span class=&quot;kt&quot;&gt;ByteCode&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;|&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;BLeft&lt;/span&gt;  &lt;span class=&quot;kt&quot;&gt;ByteCode&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;|&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;BRight&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;ByteCode&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;|&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;BPrint&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;ByteCode&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;|&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;BRead&lt;/span&gt;  &lt;span class=&quot;kt&quot;&gt;ByteCode&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;|&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;BLoop&lt;/span&gt;  &lt;span class=&quot;kt&quot;&gt;ByteCode&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;ByteCode&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;|&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;BEND&lt;/span&gt;
+    &lt;span class=&quot;kr&quot;&gt;deriving&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;Show&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;Eq&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;This is a recursive data type. Every byte code instruction except &lt;code&gt;BEND&lt;/code&gt; contains the byte code instruction following it. The loop instruction has two byte codes to continue with: either we enter the loop or we continue after it.&lt;/p&gt;
+&lt;p&gt;The function that converts tokens to byte code looks like this:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;haskell&quot;&gt;&lt;span class=&quot;nf&quot;&gt;toByteCode&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;::&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;Token&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;ByteCode&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;toByteCode&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;tokens&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;toByteCode&amp;#39;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;tokens&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;BEND&lt;/span&gt;
+    &lt;span class=&quot;kr&quot;&gt;where&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;toByteCode&amp;#39;&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;::&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;Token&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;ByteCode&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;ByteCode&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;toByteCode&amp;#39;&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;[]&lt;/span&gt;            &lt;span class=&quot;n&quot;&gt;end&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;end&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;toByteCode&amp;#39;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;TInc&lt;/span&gt;    &lt;span class=&quot;kt&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;xs&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;end&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;BInc&lt;/span&gt;   &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;toByteCode&amp;#39;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;xs&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;end&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;toByteCode&amp;#39;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;TDec&lt;/span&gt;    &lt;span class=&quot;kt&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;xs&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;end&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;BDec&lt;/span&gt;   &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;toByteCode&amp;#39;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;xs&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;end&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;toByteCode&amp;#39;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;TLeft&lt;/span&gt;   &lt;span class=&quot;kt&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;xs&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;end&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;BLeft&lt;/span&gt;  &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;toByteCode&amp;#39;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;xs&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;end&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;toByteCode&amp;#39;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;TRight&lt;/span&gt;  &lt;span class=&quot;kt&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;xs&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;end&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;BRight&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;toByteCode&amp;#39;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;xs&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;end&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;toByteCode&amp;#39;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;TPrint&lt;/span&gt;  &lt;span class=&quot;kt&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;xs&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;end&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;BPrint&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;toByteCode&amp;#39;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;xs&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;end&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;toByteCode&amp;#39;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;TRead&lt;/span&gt;   &lt;span class=&quot;kt&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;xs&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;end&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;BRead&lt;/span&gt;  &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;toByteCode&amp;#39;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;xs&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;end&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;toByteCode&amp;#39;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;TLoop&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ls&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;xs&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;end&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;kr&quot;&gt;let&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;inner&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;toByteCode&amp;#39;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ls&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;loop&lt;/span&gt;
+                                            &lt;span class=&quot;n&quot;&gt;rest&lt;/span&gt;  &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;toByteCode&amp;#39;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;xs&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;end&lt;/span&gt;
+                                            &lt;span class=&quot;n&quot;&gt;loop&lt;/span&gt;  &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;BLoop&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;inner&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;rest&lt;/span&gt;
+                                        &lt;span class=&quot;kr&quot;&gt;in&lt;/span&gt;  &lt;span class=&quot;n&quot;&gt;loop&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;There is one special trick going on here, and that is in the last case where we create the loop instruction. &lt;code&gt;toByteCode'&lt;/code&gt; takes as last argument the instruction that should be at the end. At the top level, we pass in &lt;code&gt;BEND&lt;/code&gt;, but when creating the loop, we pass in the loop itself. So the last instruction of the loop links to the loop itself.&lt;/p&gt;
+&lt;p&gt;Below is a picture of the byte code representation of this Brainfuck program &amp;#8220;&lt;code&gt;.[-.]&amp;gt;&lt;/code&gt;&amp;#8221;:&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/images/brainfuck-byte-code.png&quot; title=&quot;&quot; alt=&quot;&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;Compiling the whole program is just a matter of combining the parsing with the byte code convertion:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;haskell&quot;&gt;&lt;span class=&quot;nf&quot;&gt;compile&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;::&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;String&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;ByteCode&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;compile&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;toByteCode&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;.&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;parseTokens&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;h2&gt;Running byte code&lt;/h2&gt;
+&lt;p&gt;The &lt;code&gt;run&lt;/code&gt; function looks like this:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;haskell&quot;&gt;&lt;span class=&quot;nf&quot;&gt;run&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;::&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;Data&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;d&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&amp;gt;&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;ByteCode&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;d&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;String&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;String&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;run&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;BEND&lt;/span&gt;               &lt;span class=&quot;n&quot;&gt;dat&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;input&lt;/span&gt;  &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&amp;quot;done!&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;quot;&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;run&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;BInc&lt;/span&gt;   &lt;span class=&quot;n&quot;&gt;next&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;      &lt;span class=&quot;n&quot;&gt;dat&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;input&lt;/span&gt;  &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt;                      &lt;span class=&quot;n&quot;&gt;run&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;next&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;dataIncValue&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dat&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;     &lt;span class=&quot;n&quot;&gt;input&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;run&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;BDec&lt;/span&gt;   &lt;span class=&quot;n&quot;&gt;next&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;      &lt;span class=&quot;n&quot;&gt;dat&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;input&lt;/span&gt;  &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt;                      &lt;span class=&quot;n&quot;&gt;run&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;next&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;dataDecValue&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dat&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;     &lt;span class=&quot;n&quot;&gt;input&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;run&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;BLeft&lt;/span&gt;  &lt;span class=&quot;n&quot;&gt;next&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;      &lt;span class=&quot;n&quot;&gt;dat&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;input&lt;/span&gt;  &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt;                      &lt;span class=&quot;n&quot;&gt;run&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;next&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;dataMoveLeft&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dat&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;     &lt;span class=&quot;n&quot;&gt;input&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;run&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;BRight&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;next&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;      &lt;span class=&quot;n&quot;&gt;dat&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;input&lt;/span&gt;  &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt;                      &lt;span class=&quot;n&quot;&gt;run&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;next&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;dataMoveRight&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dat&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;    &lt;span class=&quot;n&quot;&gt;input&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;run&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;BPrint&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;next&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;      &lt;span class=&quot;n&quot;&gt;dat&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;input&lt;/span&gt;  &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;dataGetAscii&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dat&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;:&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;run&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;next&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dat&lt;/span&gt;                    &lt;span class=&quot;n&quot;&gt;input&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;run&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;BRead&lt;/span&gt;  &lt;span class=&quot;n&quot;&gt;next&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;      &lt;span class=&quot;n&quot;&gt;dat&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;i&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;is&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt;                      &lt;span class=&quot;n&quot;&gt;run&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;next&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;dataWriteAscii&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;i&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dat&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;is&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;run&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;BLoop&lt;/span&gt;  &lt;span class=&quot;n&quot;&gt;loop&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;next&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dat&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;input&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;|&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dataGet&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dat&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;==&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;0&lt;/span&gt;            &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt;                      &lt;span class=&quot;n&quot;&gt;run&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;next&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dat&lt;/span&gt;                    &lt;span class=&quot;n&quot;&gt;input&lt;/span&gt;
+    &lt;span class=&quot;o&quot;&gt;|&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;otherwise&lt;/span&gt;                   &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt;                      &lt;span class=&quot;n&quot;&gt;run&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;loop&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dat&lt;/span&gt;                    &lt;span class=&quot;n&quot;&gt;input&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;It takes as input a byte code, the Brainfuck data tape, and the user input. The return value is a string which is the output of the program.&lt;/p&gt;
+&lt;p&gt;The formatting reveals that there are only two byte codes which modify the output, and that is &lt;code&gt;BEND&lt;/code&gt; and &lt;code&gt;BPrint&lt;/code&gt;. In the same way, we can see that &lt;code&gt;BRead&lt;/code&gt; is the only byte code that consumes input. All other byte codes just pass the input along to the next instruction. About half of the byte codes do something with the data tape. In those cases, a modified data tape is passed to the recursive call to &lt;code&gt;run&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;When running a loop instruction, we examine the current value on data tape and decide which branch of instructions to continue with.&lt;/p&gt;
+&lt;h2&gt;The beauty&lt;/h2&gt;
+&lt;p&gt;I find this implementation beautiful because every piece of the program does one specific thing and the pieces are combined to form a whole. The program is also compact. But it&amp;#8217;s not compact because text has been crammed together. It&amp;#8217;s compact because combining different pieces in Haskell does not require much syntactic noise.&lt;/p&gt;
+&lt;p&gt;Because I&amp;#8217;ve never felt this kind of beauty in my object oriented code, I suspect that it is the way functional languages allow you to combine pieces that make them more beautiful to me.&lt;/p&gt;
+&lt;p&gt;If you want to look closer at the source code or look at other implementations, it is up on &lt;a href=&quot;https://github.com/rickardlindberg/brainfuck&quot;&gt;github&lt;/a&gt;.&lt;/p&gt;</description>
+    </item>
+    
+    <item>
+      <title>Closing the feedback loop</title>
+      <link>http://reflectionsonprogramming.com/2012/03/closing-the-feedback-loop</link>
+      <pubDate>Sat, 03 Mar 2012 00:00:00 +0100</pubDate>
+      <author>ricli85@gmail.com (Rickard Lindberg)</author>
+      <guid>http://reflectionsonprogramming.com/2012/03/closing-the-feedback-loop</guid>
+      <description>&lt;p&gt;&lt;em&gt;This post was originally published 4 July 2010. The blog it was published on is no longer active, and I therefore decided to move the post over here.&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;&lt;em&gt;I never used the tool I describe in this post. I guess it was because I could run my tests as fast from within Vim. However, after watching Bret Victor&amp;#8217;s amazing talk &lt;a href=&quot;http://vimeo.com/36579366&quot;&gt;Inventing on Principle&lt;/a&gt;, I was inspired to build a tool like this again. It should be able to visualize more aspects of your code other than the tests passing or failing. The goal should be to give you quicker feedback on your changes. I shall write more about my attempts at building this tool in the future.&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;I have recently spent some time reading the book &lt;em&gt;Working Effectively with Legacy Code&lt;/em&gt; by Michael Feathers. I find it interesting because it describes techniques for making bad code better.&lt;/p&gt;
+&lt;p&gt;Feathers defines legacy code as code that does not have tests and further argues that code without tests is bad code. If you believe in this statement and have the intention of converting a piece of legacy code to code that is tested you face a problem: legacy code is often hard to test because it often has many dependencies that are hard to construct in tests. The main part of the book describes techniques for solving this problem: getting tests in place for legacy code.&lt;/p&gt;
+&lt;p&gt;In one of the introductory chapters the author talks about the effect that feedback has on changing code. Feedback here means the time it takes before you see the effect of a change in the code. If you have to manually perform some action in a &lt;span class=&quot;caps&quot;&gt;GUI&lt;/span&gt; to see the effect of a change it will probably take you a minute ore two. If you have to do that many times you will perhaps become frustrated and bored. If you instead can run a set of automated tests to ensure that your change is good, the thing that you are working on can be implemented faster. The shorter the feedback loop, the better.&lt;/p&gt;
+&lt;p&gt;If you work in this modify-test fashion, you are likely leaving your editor and pressing a button to run your tests after you have finished an edit. In the book, Feathers suggests that this cycle can be shortened by running the tests continuously. In particular, the tests could be run as soon as you type a key in your &lt;span class=&quot;caps&quot;&gt;IDE&lt;/span&gt;. That sounded interesting to me so I decided to implement a simple application for use in the &lt;a href=&quot;/projects/#timeline&quot;&gt;Timeline&lt;/a&gt; project that do something similar.&lt;/p&gt;
+&lt;p&gt;The application is a small &lt;span class=&quot;caps&quot;&gt;GUI&lt;/span&gt; application that looks like in the pictures below. When you start it, it will run all tests (using the console based test script) and display the output. If all tests passed the top part will become green, otherwise it will become red. The special thing with this application is that it monitors the file system for changes and whenever it detects a change, it runs the tests again. So as soon as you hit save in your editor, the tests will run again automatically. That way you never have to leave your editor to find out how the change you made in the code affected the system. (Of course this relies on writing tests as well as code.)&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/images/running.png&quot; title=&quot;GUI Test Runner: Running&quot; alt=&quot;GUI Test Runner: Running&quot; /&gt;&lt;br /&gt;
+The application is running the tests on start-up. It will also re-run them every time it detects a change in a file.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/images/success.png&quot; title=&quot;GUI Test Runner: Success&quot; alt=&quot;GUI Test Runner: Success&quot; /&gt;&lt;br /&gt;
+The application ran the tests and they all passed.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/images/failure.png&quot; title=&quot;GUI Test Runner: Failure&quot; alt=&quot;GUI Test Runner: Failure&quot; /&gt;&lt;br /&gt;
+The application ran the tests and some of them failed. You can quickly edit your code to try to fix the errors, and when you save, you find out if you fixed them or not.&lt;/p&gt;
+&lt;p&gt;I will start using this tool when working on &lt;a href=&quot;/projects/#timeline&quot;&gt;Timeline&lt;/a&gt; and see how it affects my productivity and code quality.&lt;/p&gt;</description>
+    </item>
+    
+    <item>
+      <title>Setup and teardown in HUnit</title>
+      <link>http://reflectionsonprogramming.com/2012/02/setup-and-teardown-in-hunit</link>
+      <pubDate>Sat, 25 Feb 2012 00:00:00 +0100</pubDate>
+      <author>ricli85@gmail.com (Rickard Lindberg)</author>
+      <guid>http://reflectionsonprogramming.com/2012/02/setup-and-teardown-in-hunit</guid>
+      <description>&lt;p&gt;I was pairing with &lt;a href=&quot;http://twitter.com/testobsessed&quot;&gt;@testobsessed&lt;/a&gt; on the &lt;a href=&quot;/2012/01/application-development-series-intro/&quot;&gt;file organization application&lt;/a&gt; and we were writing tests in HUnit (the xUnit framework for Haskell).&lt;/p&gt;
+&lt;p&gt;We noticed that HUnit has no built-in support for &lt;code&gt;setUp&lt;/code&gt; and &lt;code&gt;tearDown&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;In this post I explain how it can be implemented in HUnit. I explain how it is different from traditional xUnit frameworks and highlight why I think it&amp;#8217;s more beautiful.&lt;/p&gt;
+&lt;p&gt;Also, thanks to &lt;a href=&quot;http://jasani.org/2007/12/05/unit-testing-with-hunit-in-haskell/&quot;&gt;this blog post&lt;/a&gt; for giving us the idea how to implement it.&lt;/p&gt;
+&lt;h2&gt;Problem&lt;/h2&gt;
+&lt;p&gt;We were writing sort of like an acceptance test for importing files: when you import a file, it should be moved from its source directory to a new directory inside the destination directory. Additional meta data about the imported file should also be written.&lt;/p&gt;
+&lt;p&gt;To write this test, we need a temporary directory where we can create files to import and also create the destination directory where the files should be imported to.&lt;/p&gt;
+&lt;p&gt;When the test has run, we want the temporary directory to disappear so we don&amp;#8217;t fill up the file system with test files.&lt;/p&gt;
+&lt;h2&gt;Python implementation&lt;/h2&gt;
+&lt;p&gt;In Python, I would implement it like this:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;python&quot;&gt;&lt;span class=&quot;k&quot;&gt;class&lt;/span&gt; &lt;span class=&quot;nc&quot;&gt;TestOrgApp&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;unittest&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;TestCase&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;):&lt;/span&gt;
+
+    &lt;span class=&quot;k&quot;&gt;def&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;setUp&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;bp&quot;&gt;self&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;):&lt;/span&gt;
+        &lt;span class=&quot;bp&quot;&gt;self&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tmp_dir&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;tempfile&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;mkdtemp&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;prefix&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;quot;org-app-test&amp;quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+
+    &lt;span class=&quot;k&quot;&gt;def&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;tearDown&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;bp&quot;&gt;self&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;):&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;shutil&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;rmtree&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;bp&quot;&gt;self&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tmp_dir&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+
+    &lt;span class=&quot;k&quot;&gt;def&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;testCanImportFile&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;bp&quot;&gt;self&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;):&lt;/span&gt;
+        &lt;span class=&quot;c&quot;&gt;# Test that does something with self.tmp_dir&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;Before each test is run, we create a temporary directory somewhere in the file system. Each test can use that directory for any purpose. It is then automatically removed after each test is run. (&lt;code&gt;shutil.rmtree&lt;/code&gt; removes the directory and all of its content.)&lt;/p&gt;
+&lt;p&gt;It works similarly in other xUnit frameworks.&lt;/p&gt;
+&lt;h2&gt;A test case in HUnit&lt;/h2&gt;
+&lt;p&gt;Before I explain how you can achieve the same behavior in HUnit, let me show you what a simple test file can look like. Here is an example:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;haskell&quot;&gt;&lt;span class=&quot;kr&quot;&gt;import&lt;/span&gt; &lt;span class=&quot;nn&quot;&gt;Test.HUnit&lt;/span&gt;
+
+&lt;span class=&quot;nf&quot;&gt;tests&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;test&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&amp;quot;can add small numbers&amp;quot;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;~:&lt;/span&gt; &lt;span class=&quot;kr&quot;&gt;do&lt;/span&gt;
+        &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;@?=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;3&lt;/span&gt;
+
+    &lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&amp;quot;can add large numbers&amp;quot;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;~:&lt;/span&gt; &lt;span class=&quot;kr&quot;&gt;do&lt;/span&gt;
+        &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;10&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;+&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;20&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;@?=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;30&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;]&lt;/span&gt;
+
+&lt;span class=&quot;nf&quot;&gt;main&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;runTestTT&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;tests&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;Each test case is represented by a do-block. In this case, the do-block creates an IO action. You can think of it as a function that can perform IO operations such as reading a file from disk. A test can also be preceded with a label to give it a name.&lt;/p&gt;
+&lt;p&gt;If we run this, we get&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;text&quot;&gt;Cases: 2  Tried: 2  Errors: 0  Failures: 0
+Counts {cases = 2, tried = 2, errors = 0, failures = 0}
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;If we make a mistake, we get&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;text&quot;&gt;### Failure in: 1:can add large numbers
+expected: 31
+ but got: 30
+Cases: 2  Tried: 2  Errors: 0  Failures: 1
+Counts {cases = 2, tried = 2, errors = 0, failures = 1}
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;Notice that there is no notion of a test class or &lt;code&gt;setUp&lt;/code&gt; and &lt;code&gt;tearDown&lt;/code&gt; methods in this file. A test suite is just a list of functions which each performs a test.&lt;/p&gt;
+&lt;h2&gt;Haskell implementation&lt;/h2&gt;
+&lt;p&gt;The way you implement &lt;code&gt;setUp&lt;/code&gt; and &lt;code&gt;tearDown&lt;/code&gt; in a HUnit is to include it in every test function that needs it. Something like this:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;haskell&quot;&gt;&lt;span class=&quot;s&quot;&gt;&amp;quot;can import file&amp;quot;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;~:&lt;/span&gt; &lt;span class=&quot;kr&quot;&gt;do&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;tmpDir&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;&amp;lt;-&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;createDirectory&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&amp;quot;/tmp/org-app-test&amp;quot;&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;-- Test that does something with tmpDir&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;removeDirectoryRecursive&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;tmpDir&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;This almost works. It fails if an exception is thrown in the test code. Then &lt;code&gt;removeDirectoryRecursive&lt;/code&gt; is never called. We need to fix that.&lt;/p&gt;
+&lt;p&gt;We can extract this pattern into a function:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;haskell&quot;&gt;&lt;span class=&quot;nf&quot;&gt;withTemporaryDirectory&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;::&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;kt&quot;&gt;FilePath&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;IO&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;()&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;IO&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;()&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;withTemporaryDirectory&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;bracket&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;setUp&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;tearDown&lt;/span&gt;
+    &lt;span class=&quot;kr&quot;&gt;where&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;tmpDir&lt;/span&gt;   &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&amp;quot;/tmp/org-app-test&amp;quot;&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;setUp&lt;/span&gt;    &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;createDirectory&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;tmpDir&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;&amp;gt;&amp;gt;&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;tmpDir&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;tearDown&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;removeDirectoryRecursive&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;The &lt;a href=&quot;http://hackage.haskell.org/packages/archive/base/latest/doc/html/Control-Exception-Base.html#v:bracket&quot;&gt;&lt;code&gt;bracket&lt;/code&gt;&lt;/a&gt; function is similar to a try-finally block. It will always run the &lt;code&gt;setUp&lt;/code&gt; function. If that succeeds, it will run the function passed in (the test in our case), and then always run the &lt;code&gt;tearDown&lt;/code&gt; function, no matter if the test throws and exception or not.&lt;/p&gt;
+&lt;p&gt;It is roughly equivalent to this:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;python&quot;&gt;&lt;span class=&quot;n&quot;&gt;tmpDir&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;setUp&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;()&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;try&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;
+    &lt;span class=&quot;c&quot;&gt;# Test that does something with tmpDir&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;finally&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;tearDown&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tmpDir&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;We can use &lt;code&gt;withTemporaryDirectory&lt;/code&gt; like this:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;haskell&quot;&gt;&lt;span class=&quot;s&quot;&gt;&amp;quot;can import file&amp;quot;&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;~:&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;withTemporaryDirectory&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;$&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tmpDir&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;-&amp;gt;&lt;/span&gt; &lt;span class=&quot;kr&quot;&gt;do&lt;/span&gt;
+    &lt;span class=&quot;c1&quot;&gt;-- Test that does something with tmpDir&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;The backslash syntax introduces a lambda function. So the test calls &lt;code&gt;withTemporaryDirectory&lt;/code&gt; with one argument which is a function. (The signature of the function is &lt;code&gt;FilePath -&amp;gt; IO ()&lt;/code&gt;.) That function is run by &lt;code&gt;withTemporaryDirectory&lt;/code&gt; in between the &lt;code&gt;setUp&lt;/code&gt; and &lt;code&gt;tearDown&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;So for every test that needs this setup, we just need to insert this snippet between the label and the do:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;haskell&quot;&gt;&lt;span class=&quot;nf&quot;&gt;withTemporaryDirectory&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;$&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;\&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;tmpDir&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;-&amp;gt;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;h2&gt;The beauty&lt;/h2&gt;
+&lt;p&gt;I think several aspects of this approach are more elegant than in traditional xUnit frameworks:&lt;/p&gt;
+&lt;ul&gt;
+	&lt;li&gt;The fixture has a name: &lt;code&gt;withTemporaryDirectory&lt;/code&gt;; In the Python example it doesn&amp;#8217;t.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;ul&gt;
+	&lt;li&gt;The fixture is encapsulated in &lt;code&gt;withTemporaryDirectory&lt;/code&gt; instead of being spread out in different methods in a class. It can be reused by other tests in other files. We can achieve almost the same thing in Python if we write only the test fixture in a class and then tests that need that fixture inherit from than one instead of &lt;code&gt;TestCase&lt;/code&gt;. But it is not as flexible.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;ul&gt;
+	&lt;li&gt;It&amp;#8217;s clear which tests use this fixture; In the Python example it might be all tests in the class, or it might be just a few, or none.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;ul&gt;
+	&lt;li&gt;Compared to traditional xUnit frameworks, you are more explicit about what a test needs. You don&amp;#8217;t need to scroll up a page to find what the &lt;code&gt;setUp&lt;/code&gt; and &lt;code&gt;tearDown&lt;/code&gt; actually do. It&amp;#8217;s all encapsulated in the test function. Even though it&amp;#8217;s more explicit in Haskell, it&amp;#8217;s not much less readable.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;ul&gt;
+	&lt;li&gt;To understand how &lt;code&gt;setUp&lt;/code&gt; and &lt;code&gt;tearDown&lt;/code&gt; works in traditional xUnit frameworks, you probably have to read the manual. But in the example above, you can figure out what&amp;#8217;s going on by just reading the test function and &lt;code&gt;withTemporaryDirectory&lt;/code&gt;.&lt;/li&gt;
+&lt;/ul&gt;</description>
+    </item>
+    
+    <item>
+      <title>Hello world in Haskell and GTK</title>
+      <link>http://reflectionsonprogramming.com/2012/02/hello-world-haskell-gtk</link>
+      <pubDate>Sat, 11 Feb 2012 00:00:00 +0100</pubDate>
+      <author>ricli85@gmail.com (Rickard Lindberg)</author>
+      <guid>http://reflectionsonprogramming.com/2012/02/hello-world-haskell-gtk</guid>
+      <description>&lt;p&gt;In this post I explain how I got started writing code for the &lt;a href=&quot;/2012/01/application-development-series-intro/&quot;&gt;file organization application&lt;/a&gt;. I describe the first two commits and the thoughts behind them.&lt;/p&gt;
+&lt;h2&gt;Starting with a skeleton&lt;/h2&gt;
+&lt;p&gt;Since I was unfamiliar with the technologies that I had chosen, my first goal was to get a hello world program working. If I can get that working, I gain confidence that I can use the technologies together.&lt;/p&gt;
+&lt;p&gt;In this case, the technologies were Haskell and &lt;span class=&quot;caps&quot;&gt;GTK&lt;/span&gt; (with Haskell bindings). I had played with Haskell before but was completely new to &lt;span class=&quot;caps&quot;&gt;GTK&lt;/span&gt; (although not to event-driven &lt;span class=&quot;caps&quot;&gt;GUI&lt;/span&gt; programming).&lt;/p&gt;
+&lt;p&gt;I copied a hello world example from the &lt;a href=&quot;http://projects.haskell.org/gtk2hs/&quot;&gt;Gtk2Hs&lt;/a&gt; website and pasted into a source file. It looked like this:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;haskell&quot;&gt;&lt;span class=&quot;kr&quot;&gt;import&lt;/span&gt; &lt;span class=&quot;nn&quot;&gt;Graphics.UI.Gtk&lt;/span&gt;
+
+&lt;span class=&quot;nf&quot;&gt;main&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;kr&quot;&gt;do&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;initGUI&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;window&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;&amp;lt;-&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;windowNew&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;button&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;&amp;lt;-&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;buttonNew&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;set&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;window&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;containerBorderWidth&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;:=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;10&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;containerChild&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;:=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;button&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;]&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;set&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;button&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;buttonLabel&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;:=&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&amp;quot;Hello World&amp;quot;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;]&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;onClicked&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;button&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;putStrLn&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&amp;quot;Hello World&amp;quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;onDestroy&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;window&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;mainQuit&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;widgetShowAll&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;window&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;mainGUI&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;Compiling was easy once I had downloaded the required libraries. They were all available through the package management system on my &lt;span class=&quot;caps&quot;&gt;GNU&lt;/span&gt;/Linux system. I made a script for compiling so that I wouldn&amp;#8217;t have to remember how to do it:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;bash&quot;&gt;ghc --make Main.hs -o org-app
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;(The make flag tells &lt;code&gt;ghc&lt;/code&gt; to figure out all dependencies so you only need to specify the top level program you want to compile. When you compile your project multiple times, &lt;code&gt;ghc&lt;/code&gt; will only recompile files that have changed.)&lt;/p&gt;
+&lt;p&gt;And that was the first commit: a working skeleton on which to build. I could now easily explore features of &lt;span class=&quot;caps&quot;&gt;GTK&lt;/span&gt; and &lt;span class=&quot;caps&quot;&gt;GUI&lt;/span&gt; programming in Haskell by playing around with the hello world program.&lt;/p&gt;
+&lt;h2&gt;Using Glade to design the &lt;span class=&quot;caps&quot;&gt;GUI&lt;/span&gt;&lt;/h2&gt;
+&lt;p&gt;The hello world program constructs the &lt;span class=&quot;caps&quot;&gt;GUI&lt;/span&gt; in code by creating widgets and manually placing them on a window:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;haskell&quot;&gt;&lt;span class=&quot;nf&quot;&gt;window&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;&amp;lt;-&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;windowNew&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;button&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;&amp;lt;-&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;buttonNew&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;set&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;window&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;containerBorderWidth&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;:=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;10&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;containerChild&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;:=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;button&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;]&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;set&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;button&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;buttonLabel&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;:=&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&amp;quot;Hello World&amp;quot;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;]&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;I&amp;#8217;ve had experiences designing GUIs like this and it&amp;#8217;s quite tedious. It takes a long time to get all parameters right so that your windows look the way you imagined. The code also becomes rather long and messy.&lt;/p&gt;
+&lt;p&gt;For &lt;span class=&quot;caps&quot;&gt;GTK&lt;/span&gt;, there is a tool called &lt;a href=&quot;http://glade.gnome.org/&quot;&gt;Glade&lt;/a&gt; which lets you design your widgets visually and then load them from an &lt;span class=&quot;caps&quot;&gt;XML&lt;/span&gt; file in code.&lt;/p&gt;
+&lt;p&gt;I wanted to try this approach. I decided to see if I could transform the hello world example from the first commit using Glade. I came up with this:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;haskell&quot;&gt;&lt;span class=&quot;kr&quot;&gt;import&lt;/span&gt; &lt;span class=&quot;nn&quot;&gt;Graphics.UI.Gtk&lt;/span&gt;
+&lt;span class=&quot;kr&quot;&gt;import&lt;/span&gt; &lt;span class=&quot;nn&quot;&gt;Graphics.UI.Gtk.Builder&lt;/span&gt;
+
+&lt;span class=&quot;nf&quot;&gt;main&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;kr&quot;&gt;do&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;initGUI&lt;/span&gt;
+
+    &lt;span class=&quot;n&quot;&gt;builder&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;&amp;lt;-&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;builderNew&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;builderAddFromFile&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;builder&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&amp;quot;interface.glade&amp;quot;&lt;/span&gt;
+
+    &lt;span class=&quot;n&quot;&gt;mainWindow&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;&amp;lt;-&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;builderGetObject&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;builder&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;castToWindow&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&amp;quot;main_window&amp;quot;&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;onDestroy&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;mainWindow&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;mainQuit&lt;/span&gt;
+
+    &lt;span class=&quot;n&quot;&gt;helloWorldButton&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;&amp;lt;-&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;builderGetObject&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;builder&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;castToButton&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&amp;quot;hello_world_button&amp;quot;&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;onClicked&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;helloWorldButton&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;putStrLn&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&amp;quot;Hello World&amp;quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+
+    &lt;span class=&quot;n&quot;&gt;widgetShowAll&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;mainWindow&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;mainGUI&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;Now the widgets are loaded from the &lt;span class=&quot;caps&quot;&gt;XML&lt;/span&gt; file &lt;code&gt;interface.glade&lt;/code&gt; and we only have to hook up the event handlers. The text and position of the hello world button is stored in the glade file. Instead of this:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;haskell&quot;&gt;&lt;span class=&quot;nf&quot;&gt;window&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;&amp;lt;-&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;windowNew&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;button&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;&amp;lt;-&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;buttonNew&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;set&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;window&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;containerBorderWidth&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;:=&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;10&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;containerChild&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;:=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;button&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;]&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;set&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;button&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;buttonLabel&lt;/span&gt; &lt;span class=&quot;kt&quot;&gt;:=&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&amp;quot;Hello World&amp;quot;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;]&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;We have this:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;haskell&quot;&gt;&lt;span class=&quot;nf&quot;&gt;mainWindow&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;&amp;lt;-&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;builderGetObject&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;builder&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;castToWindow&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&amp;quot;main_window&amp;quot;&lt;/span&gt;
+&lt;span class=&quot;nf&quot;&gt;helloWorldButton&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;&amp;lt;-&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;builderGetObject&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;builder&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;castToButton&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&amp;quot;hello_world_button&amp;quot;&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;This doesn&amp;#8217;t look like less code (it&amp;#8217;s actually the exact same number of lines in total), but when the &lt;span class=&quot;caps&quot;&gt;GUI&lt;/span&gt; gets more complex, I think this will pay off.&lt;/p&gt;
+&lt;p&gt;And that was the second commit.&lt;/p&gt;
+&lt;h2&gt;Confident to move forward&lt;/h2&gt;
+&lt;p&gt;At this point there are no tests or no code specific to the application. But the code proves that these technologies can be used together, and I&amp;#8217;ve gained confidence that I can move forward.&lt;/p&gt;</description>
+    </item>
+    
+    <item>
+      <title>Writing a real application in Haskell</title>
+      <link>http://reflectionsonprogramming.com/2012/02/writing-a-real-application-in-haskell</link>
+      <pubDate>Sun, 05 Feb 2012 00:00:00 +0100</pubDate>
+      <author>ricli85@gmail.com (Rickard Lindberg)</author>
+      <guid>http://reflectionsonprogramming.com/2012/02/writing-a-real-application-in-haskell</guid>
+      <description>&lt;p&gt;In this post I explain why I choose to write the &lt;a href=&quot;/2012/01/application-development-series-intro/&quot;&gt;file organization application&lt;/a&gt; in Haskell.&lt;/p&gt;
+&lt;h2&gt;Getting away from &lt;span class=&quot;caps&quot;&gt;OOP&lt;/span&gt;&lt;/h2&gt;
+&lt;p&gt;I&amp;#8217;ve spent most of my time programming in object oriented languages, but I&amp;#8217;ve also been interested in functional programming ever since I was introduced to Lisp at university.&lt;/p&gt;
+&lt;p&gt;It was in the Lisp course that I first learned about recursion (or at least came to understand it), and it also taught me a lot about programming in general.&lt;/p&gt;
+&lt;p&gt;The solutions that we wrote had a different structure from what I was used to.  I remember them as powerful and elegant. Somehow that elegance never made it outside the university and the Lisp course. That makes me a little sad.&lt;/p&gt;
+&lt;p&gt;One big reason I find object oriented programs hard to understand is mutable state. Since that is less of a problem in functional programs, I keep thinking that functional programming must be better. Or at least yield less complicated programs.&lt;/p&gt;
+&lt;p&gt;The paper &lt;a href=&quot;http://www.cs.kent.ac.uk/people/staff/dat/miranda/whyfp90.pdf&quot;&gt;Why Functional Programming Matters&lt;/a&gt; also makes some compelling cases for functional programming.&lt;/p&gt;
+&lt;p&gt;So how come it&amp;#8217;s not used mainstream?&lt;/p&gt;
+&lt;p&gt;Is it because it doesn&amp;#8217;t work in practice or is it because it&amp;#8217;s so fundamentally different that people are not willing to wrap their heads around it?&lt;/p&gt;
+&lt;p&gt;I decided it was time for me to find out by trying to write a real application in a functional language.&lt;/p&gt;
+&lt;h2&gt;Why Haskell?&lt;/h2&gt;
+&lt;p&gt;I wanted to write a real application in a functional language. But why Haskell?&lt;/p&gt;
+&lt;p&gt;I came across Haskell by accident. Because I was learning &lt;a href=&quot;http://mercurial.selenic.com/&quot;&gt;Mercurial&lt;/a&gt;, I was reading &lt;a href=&quot;http://hgbook.red-bean.com/&quot;&gt;Mercurial: The Definitive Guide&lt;/a&gt;, written by Bryan O&amp;#8217;Sullivan. I found out that he had also co-authored the book &lt;a href=&quot;http://book.realworldhaskell.org/&quot;&gt;Real World Haskell&lt;/a&gt;. Since I liked his first book, I started reading the one about Haskell.&lt;/p&gt;
+&lt;p&gt;I found Haskell interesting for two reasons: you can obviously build real things in it (and I had a book to show me how), and it&amp;#8217;s a purely functional language.&lt;/p&gt;
+&lt;p&gt;Building real things was important because I didn&amp;#8217;t just want to play around in a &lt;a href=&quot;http://en.wikipedia.org/wiki/REPL&quot;&gt;&lt;span class=&quot;caps&quot;&gt;REPL&lt;/span&gt;&lt;/a&gt;. Purely functional was important so that had to force myself to adopt the functional paradigm.&lt;/p&gt;
+&lt;p&gt;Another feature that makes Haskell different is lazy evaluation. It&amp;#8217;s a feature that allows programs to be structured in a way that would otherwise be impractical. It&amp;#8217;s also stated as one of the two advantages of functional programming in the paper mentioned above.&lt;/p&gt;
+&lt;h2&gt;Conclusion&lt;/h2&gt;
+&lt;p&gt;By writing the application in Haskell, I&amp;#8217;m exploring a different way of structuring my programs. I&amp;#8217;m expecting to learn a lot, and I will share what I learn on this blog.&lt;/p&gt;</description>
+    </item>
+    
+    <item>
+      <title>Organizing information on a wiki</title>
+      <link>http://reflectionsonprogramming.com/2012/01/organizing-information-on-a-wiki</link>
+      <pubDate>Mon, 23 Jan 2012 00:00:00 +0100</pubDate>
+      <author>ricli85@gmail.com (Rickard Lindberg)</author>
+      <guid>http://reflectionsonprogramming.com/2012/01/organizing-information-on-a-wiki</guid>
+      <description>&lt;p&gt;In this post I explain how I used a wiki to organize ideas about an &lt;a href=&quot;/2012/01/application-development-series-intro/&quot;&gt;application I&amp;#8217;m developing&lt;/a&gt;. I used the wiki on &lt;a href=&quot;https://github.com/rickardlindberg/orgapp/wiki&quot;&gt;GitHub&lt;/a&gt;.&lt;/p&gt;
+&lt;h2&gt;Process&lt;/h2&gt;
+&lt;p&gt;I started by entering all ideas on the start page of the wiki: I listened to recorded ideas and transcribed them, I scanned sketches, and I transfered notes from paper.&lt;/p&gt;
+&lt;p&gt;Following this was a process of refactoring: I looked for similar ideas and extracted those to new pages with descriptive names. I kept going until the start page only contained an introduction and a bullet list with links to the extracted pages.&lt;/p&gt;
+&lt;p&gt;As I have had new ideas, I&amp;#8217;ve added them to the appropriate page.&lt;/p&gt;
+&lt;h2&gt;Refactoring problem&lt;/h2&gt;
+&lt;p&gt;One reason that I tried using a wiki is that I believe it&amp;#8217;s a good tool for organizing information. I expected it to be easy to move a piece of text from one place to another. (This is important to be able to do because you rarely find the right place the first time.)&lt;/p&gt;
+&lt;p&gt;But I noticed that extracting pages was quite tedious: first I had to edit the start page, cut the text that I wanted to move, create a new page, give it a title, paste the text from the start page, save the new page, and save the start page.&lt;/p&gt;
+&lt;h2&gt;Better refactoring support&lt;/h2&gt;
+&lt;p&gt;A wiki that seems to have a better solution to this problem is Ward Cunningham&amp;#8217;s &lt;a href=&quot;http://github.com/WardCunningham/Smallest-Federated-Wiki&quot;&gt;smallest federated wiki&lt;/a&gt;. A &lt;a href=&quot;http://www.youtube.com/watch?v=tYrLwlxOKmA&quot;&gt;screencast&lt;/a&gt; shows how you can drag a paragraph and drop it on another page. And that&amp;#8217;s it. You&amp;#8217;re done.&lt;/p&gt;
+&lt;p&gt;I think that your behaviour will change if you have this refactoring support. Because it&amp;#8217;s easier and faster to organize information, I think you will end up with a better organized wiki in less time.&lt;/p&gt;
+&lt;p&gt;You can also argue that if refactoring is is easy and fun, you will spend more time doing it than what is actually worth. I think I would still want the feature though.&lt;/p&gt;</description>
+    </item>
+    
+    <item>
+      <title>Introducing a series about the development of an application</title>
+      <link>http://reflectionsonprogramming.com/2012/01/application-development-series-intro</link>
+      <pubDate>Wed, 11 Jan 2012 00:00:00 +0100</pubDate>
+      <author>ricli85@gmail.com (Rickard Lindberg)</author>
+      <guid>http://reflectionsonprogramming.com/2012/01/application-development-series-intro</guid>
+      <description>&lt;p&gt;This is the first post in a series where I will reflect on and document the process of developing a real application. You will find these posts interesting if you want to know how I develop applications and learn what I think about. You will also learn about the technologies used.&lt;/p&gt;
+&lt;h2&gt;The idea for the application&lt;/h2&gt;
+&lt;p&gt;I got the idea for the application when I read &lt;a href=&quot;http://pragprog.com/book/ahptl/pragmatic-thinking-and-learning&quot;&gt;Pragmatic Thinking and Learning&lt;/a&gt;. In it, Andy Hunt, describes the importance of collecting and organizing your ideas.&lt;/p&gt;
+&lt;p&gt;I like using mind maps for storing thoughts outside my head, but lately I&amp;#8217;ve experimented with recording thoughts on a portable audio recorder.&lt;/p&gt;
+&lt;p&gt;I have a bunch of ideas stored in different formats, and I need a way to organize them.&lt;/p&gt;
+&lt;p&gt;Organizing files in folders is limiting: you can not store files in multiple folders (unless you copy them) and you can only browse files based on one attribute: its location in the hierarchical folder structure.&lt;/p&gt;
+&lt;p&gt;I thought a tool where you can import your files and tag them would be more useful.&lt;/p&gt;
+&lt;h2&gt;The user interface&lt;/h2&gt;
+&lt;p&gt;After getting the idea, I drew some sketches of the interface and came up with this:&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/images/org-app-sketch.png&quot; title=&quot;Sketch of the interface.&quot; alt=&quot;Sketch of the interface.&quot; /&gt;&lt;/p&gt;
+&lt;p&gt;The basic workflow is this: you import files into the application, they show up in the file list, and you can then open them from there. In addition, you can assign tags to files and then filter the file list on tags.&lt;/p&gt;
+&lt;p&gt;All my ideas can be found on the &lt;a href=&quot;https://github.com/rickardlindberg/orgapp/wiki&quot;&gt;github wiki&lt;/a&gt;.&lt;/p&gt;
+&lt;h2&gt;Vision&lt;/h2&gt;
+&lt;p&gt;I envision myself using this application to organize many of my files. I also envision it being beautiful and fun to use. But unfortunately, implementing takes longer than imagining.&lt;/p&gt;
+&lt;p&gt;I plan to add simple, small, working features incrementally so that I can play with the application and learn what I want it to become.&lt;/p&gt;
+&lt;h2&gt;Follow me&lt;/h2&gt;
+&lt;p&gt;This blog and the &lt;a href=&quot;https://github.com/rickardlindberg/orgapp&quot;&gt;github page&lt;/a&gt; are good places to follow me in the development process.&lt;/p&gt;</description>
+    </item>
+    
+    <item>
+      <title>Does TDD have less advantage in Haskell?</title>
+      <link>http://reflectionsonprogramming.com/2011/11/does-tdd-have-less-advantage-in-haskell</link>
+      <pubDate>Wed, 02 Nov 2011 00:00:00 +0100</pubDate>
+      <author>ricli85@gmail.com (Rickard Lindberg)</author>
+      <guid>http://reflectionsonprogramming.com/2011/11/does-tdd-have-less-advantage-in-haskell</guid>
+      <description>&lt;p&gt;In his talk about &lt;a href=&quot;http://arrrrcamp.be/videos/2011/corey-haines---fast-rails-tests/&quot;&gt;fast rails tests&lt;/a&gt;, Corey Haines discusses the fundamental difference between test first programming and test driven development. The difference is how you respond to pain. If your tests are difficult to write or painful to run, do you change your tests or do you change your design? If you are doing &lt;span class=&quot;caps&quot;&gt;TDD&lt;/span&gt; you let the pain from the tests drive a better design. The idea is that if your code is easy to test, it is better designed than if it&amp;#8217;s hard to test.&lt;/p&gt;
+&lt;p&gt;So what makes something painful to test? In the talk, it was using a third party library (rails) which took a long time to both load and run. I think it took long to run mainly because it was interacting with a database. So if you write your code in such a way that it does not depend on external resources, it is easier to test, and therefore also better designed.&lt;/p&gt;
+&lt;p&gt;In Haskell (&lt;a href=&quot;/2011/10/learning-haskell/&quot;&gt;which I&amp;#8217;m currently learning&lt;/a&gt;) you make a distinction between pure and impure functions. Pure functions do not have side effects and they always return the same value when called with the same arguments. Pure functions are therefore easy to test.&lt;/p&gt;
+&lt;p&gt;Since it seems to be common in Haskell to divide your program into pure and impure parts, and to write as much as possible as pure code, I wonder if &lt;span class=&quot;caps&quot;&gt;TDD&lt;/span&gt; has less advantage here than in object oriented languages. Perhaps it is easier to make a better design in Haskel because the language encourages you to use constructs that lead to a better design. I have a feeling that in object oriented languages you have to be careful to not do the wrong thing, whereas in Haskell, the right thing is easier to do.&lt;/p&gt;
+&lt;p&gt;I&amp;#8217;m not suggesting that you should skip writing test for your Haskell programs (I think you should). I&amp;#8217;m just saying that perhaps it is easier to write better designed programs in Haskel than in object oriented languages.&lt;/p&gt;</description>
+    </item>
+    
+    <item>
+      <title>Learning Haskell</title>
+      <link>http://reflectionsonprogramming.com/2011/10/learning-haskell</link>
+      <pubDate>Mon, 10 Oct 2011 00:00:00 +0200</pubDate>
+      <author>ricli85@gmail.com (Rickard Lindberg)</author>
+      <guid>http://reflectionsonprogramming.com/2011/10/learning-haskell</guid>
+      <description>&lt;p&gt;I&amp;#8217;ve wanted to learn Haskell for quite some time now. I&amp;#8217;ve had the book &lt;a href=&quot;http://book.realworldhaskell.org/read/&quot;&gt;Real World Haskell&lt;/a&gt; sitting in my bookshelf for a little over a year. I have read parts of it but never written any programs. This weekend I took the opportunity to learn some Haskell by writing code for a real project. What follows are my first impressions.&lt;/p&gt;
+&lt;h2&gt;Why Haskell?&lt;/h2&gt;
+&lt;p&gt;Ever since I learned about functional programming at university, I&amp;#8217;ve wanted to use it in a real project. It feels like you can write beautiful solutions in a functional language that you just can&amp;#8217;t in an object oriented language.&lt;/p&gt;
+&lt;p&gt;If that is true, how come more people don&amp;#8217;t use functional languages? If I try using one in a real project, I might find out.&lt;/p&gt;
+&lt;p&gt;Why Haskell? I happened to come across it and it looked cool.&lt;/p&gt;
+&lt;h2&gt;What project?&lt;/h2&gt;
+&lt;p&gt;At work we write quite a lot of JavaScript code, but we lack a good tool for refactoring. The past week I wrote a simple Python script to rename a class. It only searched the source files textually for the old class name and replaced it with the new one.&lt;/p&gt;
+&lt;p&gt;I thought a tool could do a better job if it parsed the source code and analyzed the parse tree. Such a tool would also be able to perform more complex refactorings.&lt;/p&gt;
+&lt;p&gt;I thought Haskell would be a great language to build this tool in.&lt;/p&gt;
+&lt;h2&gt;Haskell&amp;#8217;s syntax&lt;/h2&gt;
+&lt;p&gt;The first obstacle I found to writing code in Haskell was its syntax. It&amp;#8217;s quite compact and I feel uncertain in which contexts certain constructs can be used.&lt;/p&gt;
+&lt;p&gt;It also seems to be quite common in libraries to define custom operators (things that look like &lt;code&gt;&amp;gt;-&amp;gt;&lt;/code&gt; or &lt;code&gt;-|-&lt;/code&gt;).&lt;/p&gt;
+&lt;p&gt;It looks intimidating at first, but I believe it&amp;#8217;s just because I&amp;#8217;m not used to it. The compact syntax also allows you to write quite beautiful code.&lt;/p&gt;
+&lt;h2&gt;Confidence in code&lt;/h2&gt;
+&lt;p&gt;I feel quite confident that the Haskell code that I write works. Since the compiler checks for type errors (getting code to compile feels difficult at times), I feel that I only need a few simple tests to verify that the code does what it&amp;#8217;s supposed to do.&lt;/p&gt;
+&lt;p&gt;Perhaps this is a false sense of confidence. I don&amp;#8217;t yet know. But for sure I can skip writing some types of tests because the compiler will check for certain errors.&lt;/p&gt;
+&lt;h2&gt;Size of steps&lt;/h2&gt;
+&lt;p&gt;Compared to object oriented programming I feel that the steps I take when programming Haskell are not as small. Instead it feels like I need to think hard about a problem and then write the complete solution.&lt;/p&gt;
+&lt;p&gt;One thing that makes it hard to take small steps in Haskell is that your code will not compile unless all types are correct. It probably is possible to take small steps in Haskel, but not in the same way that I&amp;#8217;m used to from &lt;span class=&quot;caps&quot;&gt;OOP&lt;/span&gt;.&lt;/p&gt;
+&lt;h2&gt;Structure of solution&lt;/h2&gt;
+&lt;p&gt;My first attempt at implementing a parser for &lt;span class=&quot;caps&quot;&gt;JSON&lt;/span&gt; (a simpler problem to start with than JavaScript) was far from perfect. It was longer that it needed to be and contained some duplication. When I thought about how to refactor it to remove duplication and express the parsing logic in clearer way, the solution I discovered was a partition into two layers: one layer with primitives for building a parser and another layer to use those building blocks to build the &lt;span class=&quot;caps&quot;&gt;JSON&lt;/span&gt; parser. (I had some help from &lt;a href=&quot;http://thor.info.uaic.ro/~grigoras/diplome/9.pdf&quot;&gt;Parsing with Haskell Introduction&lt;/a&gt;.)&lt;/p&gt;
+&lt;p&gt;When this happened I thought about &lt;a href=&quot;http://mitpress.mit.edu/sicp/&quot;&gt;Structure and Interpretation of Computer Programs&lt;/a&gt;. In particular how they described that a powerful way to solve a complex problem is to design a language in which that problem is trivial to solve. It felt like I had done exactly that, and it felt powerful.&lt;/p&gt;
+&lt;p&gt;When reading the code for the parser, I can focus on one layer at a time. Compared to &lt;span class=&quot;caps&quot;&gt;OOP&lt;/span&gt; where you have a web of objects communicating with each other, it feels like the layered structure is easier to understand:&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;/images/fp_oop_structure.png&quot; title=&quot;Structure of FP and OOP.&quot; alt=&quot;Structure of FP and OOP.&quot; /&gt;&lt;/p&gt;
+&lt;h2&gt;Reuse of code&lt;/h2&gt;
+&lt;p&gt;The reuse of code feels different in Haskell than in &lt;span class=&quot;caps&quot;&gt;OOP&lt;/span&gt;. Firstly I think it is because the layered approach lends itself better to reuse than the web of objects. Secondly I think it is because you write pure functions with no side effects.&lt;/p&gt;
+&lt;h2&gt;Summary&lt;/h2&gt;
+&lt;p&gt;I had a pleasant weekend learning Haskell and I&amp;#8217;m looking forward to learning more.&lt;/p&gt;</description>
+    </item>
+    
+    <item>
+      <title>Testing configuration</title>
+      <link>http://reflectionsonprogramming.com/2011/09/testing-configuration</link>
+      <pubDate>Wed, 28 Sep 2011 00:00:00 +0200</pubDate>
+      <author>ricli85@gmail.com (Rickard Lindberg)</author>
+      <guid>http://reflectionsonprogramming.com/2011/09/testing-configuration</guid>
+      <description>&lt;p&gt;A while ago I fixed a bug in &lt;a href=&quot;/projects/#simplereview&quot;&gt;simple review&lt;/a&gt; that had to do with escaping. The problem was that not all characters were escaped when converting a Python string to a &lt;span class=&quot;caps&quot;&gt;JSON&lt;/span&gt; string.&lt;/p&gt;
+&lt;p&gt;The tests I had at that point looked like this:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;python&quot;&gt;&lt;span class=&quot;k&quot;&gt;def&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;test_escapes_quotes_in_string_values&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;bp&quot;&gt;self&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;):&lt;/span&gt;
+    &lt;span class=&quot;bp&quot;&gt;self&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;assertEquals&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;&amp;quot;&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;quot;hello&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;quot;&amp;quot;&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;simplereview&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;json&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;json_value&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;&amp;quot;hello&amp;quot;&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt;
+
+&lt;span class=&quot;k&quot;&gt;def&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;test_escapes_backslash_in_string_values&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;bp&quot;&gt;self&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;):&lt;/span&gt;
+    &lt;span class=&quot;bp&quot;&gt;self&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;assertEquals&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;&amp;quot;hell&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\\\&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;o&amp;quot;&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;simplereview&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;json&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;json_value&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;hell&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;o&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt;
+
+&lt;span class=&quot;k&quot;&gt;def&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;test_escapes_all_correctly&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;bp&quot;&gt;self&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;):&lt;/span&gt;
+    &lt;span class=&quot;bp&quot;&gt;self&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;assertEquals&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;&amp;quot;he&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;quot;ll&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\\\&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;o&amp;quot;&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;simplereview&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;json&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;json_value&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;he&amp;quot;ll&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;o&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;And the implementation for the escaping part looked like this:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;python&quot;&gt;&lt;span class=&quot;k&quot;&gt;def&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;_string_escape&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;string&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;):&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;string&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;replace&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\\\&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;replace&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;&amp;quot;&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&amp;#39;&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;quot;&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;h2&gt;Adding tests to expose the bug&lt;/h2&gt;
+&lt;p&gt;To fix this problem, I started adding more tests, and ended up with the following:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;python&quot;&gt;&lt;span class=&quot;k&quot;&gt;def&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;test_escapes_quotes_in_string_values&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;bp&quot;&gt;self&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;):&lt;/span&gt;
+    &lt;span class=&quot;bp&quot;&gt;self&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;assertEquals&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;&amp;quot;hell&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;quot;o&amp;quot;&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;json_value&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;hell&amp;quot;o&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt;
+
+&lt;span class=&quot;k&quot;&gt;def&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;test_escapes_backslash_in_string_values&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;bp&quot;&gt;self&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;):&lt;/span&gt;
+    &lt;span class=&quot;bp&quot;&gt;self&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;assertEquals&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;&amp;quot;hell&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\\\&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;o&amp;quot;&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;json_value&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;hell&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;o&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt;
+
+&lt;span class=&quot;k&quot;&gt;def&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;test_escapes_forward_slash_in_string_values&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;bp&quot;&gt;self&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;):&lt;/span&gt;
+    &lt;span class=&quot;bp&quot;&gt;self&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;assertEquals&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;&amp;quot;hell&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;/o&amp;quot;&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;json_value&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;hell/o&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt;
+
+&lt;span class=&quot;k&quot;&gt;def&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;test_escapes_backspace_in_string_values&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;bp&quot;&gt;self&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;):&lt;/span&gt;
+    &lt;span class=&quot;bp&quot;&gt;self&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;assertEquals&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;&amp;quot;hell&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;bo&amp;quot;&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;json_value&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;hell&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\b&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;o&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt;
+
+&lt;span class=&quot;k&quot;&gt;def&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;test_escapes_formfeed_in_string_values&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;bp&quot;&gt;self&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;):&lt;/span&gt;
+    &lt;span class=&quot;bp&quot;&gt;self&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;assertEquals&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;&amp;quot;hell&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;fo&amp;quot;&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;json_value&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;hell&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\f&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;o&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt;
+
+&lt;span class=&quot;k&quot;&gt;def&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;test_escapes_newline_in_string_values&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;bp&quot;&gt;self&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;):&lt;/span&gt;
+    &lt;span class=&quot;bp&quot;&gt;self&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;assertEquals&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;&amp;quot;hell&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;no&amp;quot;&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;json_value&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;hell&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;o&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt;
+
+&lt;span class=&quot;k&quot;&gt;def&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;test_escapes_carriage_return_in_string_values&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;bp&quot;&gt;self&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;):&lt;/span&gt;
+    &lt;span class=&quot;bp&quot;&gt;self&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;assertEquals&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;&amp;quot;hell&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;ro&amp;quot;&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;json_value&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;hell&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\r&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;o&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt;
+
+&lt;span class=&quot;k&quot;&gt;def&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;test_escapes_tab_in_string_values&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;bp&quot;&gt;self&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;):&lt;/span&gt;
+    &lt;span class=&quot;bp&quot;&gt;self&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;assertEquals&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;&amp;quot;hell&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;to&amp;quot;&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;json_value&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;hell&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\t&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;o&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt;
+
+&lt;span class=&quot;k&quot;&gt;def&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;test_escapes_all_correctly&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;bp&quot;&gt;self&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;):&lt;/span&gt;
+    &lt;span class=&quot;bp&quot;&gt;self&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;assertEquals&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;&amp;quot;he&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;quot;ll&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\\\&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;o&amp;quot;&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;json_value&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;he&amp;quot;ll&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;o&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;))&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;And I ended up with the following implementation:&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;python&quot;&gt;&lt;span class=&quot;k&quot;&gt;def&lt;/span&gt; &lt;span class=&quot;nf&quot;&gt;_string_escape&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;string&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;):&lt;/span&gt;
+    &lt;span class=&quot;n&quot;&gt;replacements&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;
+        &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&amp;#39;&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\\\&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;),&lt;/span&gt;
+        &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;&amp;quot;&amp;#39;&lt;/span&gt;  &lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&amp;#39;&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;quot;&amp;#39;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;),&lt;/span&gt;
+        &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;/&amp;#39;&lt;/span&gt;  &lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&amp;#39;&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;/&amp;#39;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;),&lt;/span&gt;
+        &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\b&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&amp;#39;&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;b&amp;#39;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;),&lt;/span&gt;
+        &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\f&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&amp;#39;&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;f&amp;#39;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;),&lt;/span&gt;
+        &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\n&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&amp;#39;&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;n&amp;#39;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;),&lt;/span&gt;
+        &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\r&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&amp;#39;&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;r&amp;#39;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;),&lt;/span&gt;
+        &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\t&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;&amp;#39;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;s&quot;&gt;&amp;#39;&lt;/span&gt;&lt;span class=&quot;se&quot;&gt;\\&lt;/span&gt;&lt;span class=&quot;s&quot;&gt;t&amp;#39;&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;),&lt;/span&gt;
+    &lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;for&lt;/span&gt; &lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;a&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;b&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;in&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;replacements&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;
+        &lt;span class=&quot;n&quot;&gt;string&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;=&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;string&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;replace&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;(&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;a&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;b&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;)&lt;/span&gt;
+    &lt;span class=&quot;k&quot;&gt;return&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;string&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;h2&gt;Repetitive tests&lt;/h2&gt;
+&lt;p&gt;Pretty soon (long before I had written tests for all characters to escape), I refactored the implementation to look like above: the strings to replace were configured in a list and the logic for doing the replacements was separate.&lt;/p&gt;
+&lt;p&gt;I could have extracted the code that did the replacement to a function like &lt;code&gt;replace_in_order(replacements)&lt;/code&gt; to make the distinction even more clear.&lt;/p&gt;
+&lt;p&gt;When I wrote tests for the later characters to escape, the only thing I had to do to make them pass was to add a configuration line to the &lt;code&gt;replacements&lt;/code&gt; variable.&lt;/p&gt;
+&lt;p&gt;It felt like the benefit of writing the additional tests were not that big. I was certainly not driving the design in any direction and I&amp;#8217;m not sure that I even tested the correctness. I could have written the wrong assert (messed up a backspace or read the &lt;span class=&quot;caps&quot;&gt;JSON&lt;/span&gt; specification wrong for example) and then done the same mistake in the configuration.&lt;/p&gt;
+&lt;h2&gt;Different ways of testing&lt;/h2&gt;
+&lt;p&gt;I started to think about a different way to test this functionality without writing repetitive tests. What if I extracted the &lt;code&gt;replace_in_order&lt;/code&gt; function and then wrote tests for that one in isolation. (Those test would not necessarily have anything to do with escaping characters.)&lt;/p&gt;
+&lt;p&gt;If I did that, then I would not have any tests for the configuration list itself. You can then argue that the configuration is really simple and the best way to verify that it is correct is to read the &lt;span class=&quot;caps&quot;&gt;JSON&lt;/span&gt; specification and compare it to the configuration.&lt;/p&gt;
+&lt;p&gt;We could also write a small integration test to make sure that the correct configuration is used with &lt;code&gt;replace_in_order&lt;/code&gt;. I&amp;#8217;m not sure if that is a good approach though.&lt;/p&gt;
+&lt;h2&gt;What is configuration anyway?&lt;/h2&gt;
+&lt;p&gt;We have treated the &lt;code&gt;replacements&lt;/code&gt; list as configuration to &lt;code&gt;replace_in_order&lt;/code&gt; and discussed whether writing unit tests for that particular configuration is worthwhile.&lt;/p&gt;
+&lt;p&gt;But dividing code into configuration and non-configuration doesn&amp;#8217;t really make sense. In the same way that &lt;code&gt;replace_in_order&lt;/code&gt; can be configured to work as a &lt;span class=&quot;caps&quot;&gt;JSON&lt;/span&gt; string escape function, the Python interpreter can be configured to work as a web application by giving it some Python code that implements a web application.&lt;/p&gt;
+&lt;p&gt;So there is really only configuration. The only difference is what it configures.&lt;/p&gt;
+&lt;p&gt;A more relevant property to look at might be complexity.&lt;/p&gt;
+&lt;h2&gt;Order complexity&lt;/h2&gt;
+&lt;p&gt;The &lt;span class=&quot;caps&quot;&gt;JSON&lt;/span&gt; escape configuration might seem simple at first, but there is a hidden complexity: the order is important. Since all replacements adds a &lt;code&gt;\&lt;/code&gt; in the output, we must have the configuration that escapes &lt;code&gt;\&lt;/code&gt; first.&lt;/p&gt;
+&lt;p&gt;Similarly, we could not write a configuration that replaced all &amp;#8220;a&amp;#8221; with &amp;#8220;b&amp;#8221; and all &amp;#8220;b&amp;#8221; with &amp;#8220;a&amp;#8221;.&lt;/p&gt;
+&lt;p&gt;To remove this complexity from this configuration we could implement the replacement function so that the order is not important. It would then have to scan the string only once and replace matches it finds on the way.&lt;/p&gt;
+&lt;h2&gt;Sub match complexity&lt;/h2&gt;
+&lt;p&gt;Assuming we remove the order complexity, there is still another complexity left that has to do with sub matches. What if we have the following configuration:&lt;/p&gt;
+&lt;ul&gt;
+	&lt;li&gt;&amp;#8220;a&amp;#8221; &amp;#8594; &amp;#8220;b&amp;#8221;&lt;/li&gt;
+	&lt;li&gt;&amp;#8220;ab&amp;#8221; &amp;#8594; &amp;#8220;ba&amp;#8221;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Would the string &amp;#8220;ab&amp;#8221; be converted to &amp;#8220;bb&amp;#8221; or &amp;#8220;ba&amp;#8221;? The implementation can either search for matches in order (then &amp;#8220;bb&amp;#8221; is the result), search for the longest matching string (then &amp;#8220;ba&amp;#8221; is the result), or the shortest matching string (then &amp;#8220;bb&amp;#8221; is the result). No matter which, it has to be clear when writing the configuration.&lt;/p&gt;
+&lt;h2&gt;Reasons to break&lt;/h2&gt;
+&lt;p&gt;Given the current implementation of the replacement logic, the &lt;span class=&quot;caps&quot;&gt;JSON&lt;/span&gt; string escaping functionality can break for the following reasons:&lt;/p&gt;
+&lt;ol&gt;
+	&lt;li&gt;There is a bug in &lt;code&gt;replace_in_order&lt;/code&gt;&lt;/li&gt;
+	&lt;li&gt;The order of the replacement strings is incorrect&lt;/li&gt;
+	&lt;li&gt;The replacement strings does not match the &lt;span class=&quot;caps&quot;&gt;JSON&lt;/span&gt; specification&lt;/li&gt;
+	&lt;li&gt;The parts are not put together correctly (the correct configuration is not passed to &lt;code&gt;replace_in_order&lt;/code&gt; for example)&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;The first reason to break can be controlled with unit tests for &lt;code&gt;replace_in_order&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;The second reason to break can be removed by implementing &lt;code&gt;replace_in_order&lt;/code&gt; differently so that the order of configuration strings is not important. (It would then also have to change name.)&lt;/p&gt;
+&lt;p&gt;The third reason to break is a little tricky to test automatically. To do that you need to send an escaped string to some &lt;span class=&quot;caps&quot;&gt;JSON&lt;/span&gt; library and then get it back and see that it looks the same. Perhaps reading the &lt;span class=&quot;caps&quot;&gt;JSON&lt;/span&gt; specification and comparing it with the &lt;code&gt;replacements&lt;/code&gt; list is an acceptable compromise.&lt;/p&gt;
+&lt;p&gt;The fourth reason to break can be controlled by having a small integration test.&lt;/p&gt;
+&lt;h2&gt;Conclusions&lt;/h2&gt;
+&lt;p&gt;To determine if it is worthwhile to write a unit test for a particular piece of code, you can reason about the different ways your code can break without your test suite catching it. If you conclude that the risk is low, you can perhaps skip writing unit tests. Perhaps it is better to test a particular functionality in another way. But it seems like a good idea to remove as much risk as possible.&lt;/p&gt;</description>
+    </item>
+    
+
+  </channel> 
+</rss>

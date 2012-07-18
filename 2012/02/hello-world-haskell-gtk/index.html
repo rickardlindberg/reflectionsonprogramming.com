@@ -1,0 +1,125 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
+"http://www.w3.org/TR/html4/strict.dtd">
+<html>
+  <head>
+    <title>
+      Hello world in Haskell and GTK | Reflections on Programming
+    </title>
+    <meta name="keywords" content="reflections, programming" />
+    <meta name="description" content="Reflections on various aspects of programming.">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <link rel="alternate" type="application/rss+xml" title="RSS 2.0" href="/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom 0.3" href="/atom.xml" />
+    <link rel="stylesheet" href="/css/blueprint/screen.css" type="text/css" media="screen, projection">
+    <link rel="stylesheet" href="/css/blueprint/print.css" type="text/css" media="print"> 
+    <!--[if lt IE 8]>
+      <link rel="stylesheet" href="/css/blueprint/ie.css" type="text/css" media="screen, projection">
+    <![endif]-->
+    <link rel="stylesheet" href="/css/pygments/syntax.css" type="text/css"> 
+    <link rel="stylesheet" href="/css/layout.css" type="text/css"> 
+    <link rel="stylesheet" href="/css/colors.css" type="text/css"> 
+  </head>
+  <body>
+    <div class="container noshowgrid">
+      <div class="span-20 prepend-2 append-2">
+        <h1>Hello world in Haskell and GTK</h1>
+        <hr />
+        <p>In this post I explain how I got started writing code for the <a href="/2012/01/application-development-series-intro/">file organization application</a>. I describe the first two commits and the thoughts behind them.</p>
+<h2>Starting with a skeleton</h2>
+<p>Since I was unfamiliar with the technologies that I had chosen, my first goal was to get a hello world program working. If I can get that working, I gain confidence that I can use the technologies together.</p>
+<p>In this case, the technologies were Haskell and <span class="caps">GTK</span> (with Haskell bindings). I had played with Haskell before but was completely new to <span class="caps">GTK</span> (although not to event-driven <span class="caps">GUI</span> programming).</p>
+<p>I copied a hello world example from the <a href="http://projects.haskell.org/gtk2hs/">Gtk2Hs</a> website and pasted into a source file. It looked like this:</p>
+<div class="highlight"><pre><code class="haskell"><span class="kr">import</span> <span class="nn">Graphics.UI.Gtk</span>
+
+<span class="nf">main</span> <span class="ow">=</span> <span class="kr">do</span>
+    <span class="n">initGUI</span>
+    <span class="n">window</span> <span class="ow">&lt;-</span> <span class="n">windowNew</span>
+    <span class="n">button</span> <span class="ow">&lt;-</span> <span class="n">buttonNew</span>
+    <span class="n">set</span> <span class="n">window</span> <span class="p">[</span> <span class="n">containerBorderWidth</span> <span class="kt">:=</span> <span class="mi">10</span><span class="p">,</span> <span class="n">containerChild</span> <span class="kt">:=</span> <span class="n">button</span> <span class="p">]</span>
+    <span class="n">set</span> <span class="n">button</span> <span class="p">[</span> <span class="n">buttonLabel</span> <span class="kt">:=</span> <span class="s">&quot;Hello World&quot;</span> <span class="p">]</span>
+    <span class="n">onClicked</span> <span class="n">button</span> <span class="p">(</span><span class="n">putStrLn</span> <span class="s">&quot;Hello World&quot;</span><span class="p">)</span>
+    <span class="n">onDestroy</span> <span class="n">window</span> <span class="n">mainQuit</span>
+    <span class="n">widgetShowAll</span> <span class="n">window</span>
+    <span class="n">mainGUI</span>
+</code></pre>
+</div>
+<p>Compiling was easy once I had downloaded the required libraries. They were all available through the package management system on my <span class="caps">GNU</span>/Linux system. I made a script for compiling so that I wouldn&#8217;t have to remember how to do it:</p>
+<div class="highlight"><pre><code class="bash">ghc --make Main.hs -o org-app
+</code></pre>
+</div>
+<p>(The make flag tells <code>ghc</code> to figure out all dependencies so you only need to specify the top level program you want to compile. When you compile your project multiple times, <code>ghc</code> will only recompile files that have changed.)</p>
+<p>And that was the first commit: a working skeleton on which to build. I could now easily explore features of <span class="caps">GTK</span> and <span class="caps">GUI</span> programming in Haskell by playing around with the hello world program.</p>
+<h2>Using Glade to design the <span class="caps">GUI</span></h2>
+<p>The hello world program constructs the <span class="caps">GUI</span> in code by creating widgets and manually placing them on a window:</p>
+<div class="highlight"><pre><code class="haskell"><span class="nf">window</span> <span class="ow">&lt;-</span> <span class="n">windowNew</span>
+<span class="nf">button</span> <span class="ow">&lt;-</span> <span class="n">buttonNew</span>
+<span class="nf">set</span> <span class="n">window</span> <span class="p">[</span> <span class="n">containerBorderWidth</span> <span class="kt">:=</span> <span class="mi">10</span><span class="p">,</span> <span class="n">containerChild</span> <span class="kt">:=</span> <span class="n">button</span> <span class="p">]</span>
+<span class="nf">set</span> <span class="n">button</span> <span class="p">[</span> <span class="n">buttonLabel</span> <span class="kt">:=</span> <span class="s">&quot;Hello World&quot;</span> <span class="p">]</span>
+</code></pre>
+</div>
+<p>I&#8217;ve had experiences designing GUIs like this and it&#8217;s quite tedious. It takes a long time to get all parameters right so that your windows look the way you imagined. The code also becomes rather long and messy.</p>
+<p>For <span class="caps">GTK</span>, there is a tool called <a href="http://glade.gnome.org/">Glade</a> which lets you design your widgets visually and then load them from an <span class="caps">XML</span> file in code.</p>
+<p>I wanted to try this approach. I decided to see if I could transform the hello world example from the first commit using Glade. I came up with this:</p>
+<div class="highlight"><pre><code class="haskell"><span class="kr">import</span> <span class="nn">Graphics.UI.Gtk</span>
+<span class="kr">import</span> <span class="nn">Graphics.UI.Gtk.Builder</span>
+
+<span class="nf">main</span> <span class="ow">=</span> <span class="kr">do</span>
+    <span class="n">initGUI</span>
+
+    <span class="n">builder</span> <span class="ow">&lt;-</span> <span class="n">builderNew</span>
+    <span class="n">builderAddFromFile</span> <span class="n">builder</span> <span class="s">&quot;interface.glade&quot;</span>
+
+    <span class="n">mainWindow</span> <span class="ow">&lt;-</span> <span class="n">builderGetObject</span> <span class="n">builder</span> <span class="n">castToWindow</span> <span class="s">&quot;main_window&quot;</span>
+    <span class="n">onDestroy</span> <span class="n">mainWindow</span> <span class="n">mainQuit</span>
+
+    <span class="n">helloWorldButton</span> <span class="ow">&lt;-</span> <span class="n">builderGetObject</span> <span class="n">builder</span> <span class="n">castToButton</span> <span class="s">&quot;hello_world_button&quot;</span>
+    <span class="n">onClicked</span> <span class="n">helloWorldButton</span> <span class="p">(</span><span class="n">putStrLn</span> <span class="s">&quot;Hello World&quot;</span><span class="p">)</span>
+
+    <span class="n">widgetShowAll</span> <span class="n">mainWindow</span>
+    <span class="n">mainGUI</span>
+</code></pre>
+</div>
+<p>Now the widgets are loaded from the <span class="caps">XML</span> file <code>interface.glade</code> and we only have to hook up the event handlers. The text and position of the hello world button is stored in the glade file. Instead of this:</p>
+<div class="highlight"><pre><code class="haskell"><span class="nf">window</span> <span class="ow">&lt;-</span> <span class="n">windowNew</span>
+<span class="nf">button</span> <span class="ow">&lt;-</span> <span class="n">buttonNew</span>
+<span class="nf">set</span> <span class="n">window</span> <span class="p">[</span> <span class="n">containerBorderWidth</span> <span class="kt">:=</span> <span class="mi">10</span><span class="p">,</span> <span class="n">containerChild</span> <span class="kt">:=</span> <span class="n">button</span> <span class="p">]</span>
+<span class="nf">set</span> <span class="n">button</span> <span class="p">[</span> <span class="n">buttonLabel</span> <span class="kt">:=</span> <span class="s">&quot;Hello World&quot;</span> <span class="p">]</span>
+</code></pre>
+</div>
+<p>We have this:</p>
+<div class="highlight"><pre><code class="haskell"><span class="nf">mainWindow</span> <span class="ow">&lt;-</span> <span class="n">builderGetObject</span> <span class="n">builder</span> <span class="n">castToWindow</span> <span class="s">&quot;main_window&quot;</span>
+<span class="nf">helloWorldButton</span> <span class="ow">&lt;-</span> <span class="n">builderGetObject</span> <span class="n">builder</span> <span class="n">castToButton</span> <span class="s">&quot;hello_world_button&quot;</span>
+</code></pre>
+</div>
+<p>This doesn&#8217;t look like less code (it&#8217;s actually the exact same number of lines in total), but when the <span class="caps">GUI</span> gets more complex, I think this will pay off.</p>
+<p>And that was the second commit.</p>
+<h2>Confident to move forward</h2>
+<p>At this point there are no tests or no code specific to the application. But the code proves that these technologies can be used together, and I&#8217;ve gained confidence that I can move forward.</p>
+
+<hr />
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+    /* * * CONFIGURATION VARIABLES: EDIT BEFORE PASTING INTO YOUR WEBPAGE * * */
+    var disqus_shortname = 'reflectionsonprogramming'; // required: replace example with your forum shortname
+
+    /* * * DON'T EDIT BELOW THIS LINE * * */
+    (function() {
+        var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+        dsq.src = 'http://' + disqus_shortname + '.disqus.com/embed.js';
+        (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">blog comments powered by <span class="logo-disqus">Disqus</span></a>
+
+<hr />
+
+<p>Published 11 Feb 2012</p>
+
+<p><a href="/">Home</a></p>
+
+      </div>
+    </div>
+  </body>
+</html>

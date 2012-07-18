@@ -1,0 +1,68 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
+"http://www.w3.org/TR/html4/strict.dtd">
+<html>
+  <head>
+    <title>
+      Closing the feedback loop | Reflections on Programming
+    </title>
+    <meta name="keywords" content="reflections, programming" />
+    <meta name="description" content="Reflections on various aspects of programming.">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <link rel="alternate" type="application/rss+xml" title="RSS 2.0" href="/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom 0.3" href="/atom.xml" />
+    <link rel="stylesheet" href="/css/blueprint/screen.css" type="text/css" media="screen, projection">
+    <link rel="stylesheet" href="/css/blueprint/print.css" type="text/css" media="print"> 
+    <!--[if lt IE 8]>
+      <link rel="stylesheet" href="/css/blueprint/ie.css" type="text/css" media="screen, projection">
+    <![endif]-->
+    <link rel="stylesheet" href="/css/pygments/syntax.css" type="text/css"> 
+    <link rel="stylesheet" href="/css/layout.css" type="text/css"> 
+    <link rel="stylesheet" href="/css/colors.css" type="text/css"> 
+  </head>
+  <body>
+    <div class="container noshowgrid">
+      <div class="span-20 prepend-2 append-2">
+        <h1>Closing the feedback loop</h1>
+        <hr />
+        <p><em>This post was originally published 4 July 2010. The blog it was published on is no longer active, and I therefore decided to move the post over here.</em></p>
+<p><em>I never used the tool I describe in this post. I guess it was because I could run my tests as fast from within Vim. However, after watching Bret Victor&#8217;s amazing talk <a href="http://vimeo.com/36579366">Inventing on Principle</a>, I was inspired to build a tool like this again. It should be able to visualize more aspects of your code other than the tests passing or failing. The goal should be to give you quicker feedback on your changes. I shall write more about my attempts at building this tool in the future.</em></p>
+<p>I have recently spent some time reading the book <em>Working Effectively with Legacy Code</em> by Michael Feathers. I find it interesting because it describes techniques for making bad code better.</p>
+<p>Feathers defines legacy code as code that does not have tests and further argues that code without tests is bad code. If you believe in this statement and have the intention of converting a piece of legacy code to code that is tested you face a problem: legacy code is often hard to test because it often has many dependencies that are hard to construct in tests. The main part of the book describes techniques for solving this problem: getting tests in place for legacy code.</p>
+<p>In one of the introductory chapters the author talks about the effect that feedback has on changing code. Feedback here means the time it takes before you see the effect of a change in the code. If you have to manually perform some action in a <span class="caps">GUI</span> to see the effect of a change it will probably take you a minute ore two. If you have to do that many times you will perhaps become frustrated and bored. If you instead can run a set of automated tests to ensure that your change is good, the thing that you are working on can be implemented faster. The shorter the feedback loop, the better.</p>
+<p>If you work in this modify-test fashion, you are likely leaving your editor and pressing a button to run your tests after you have finished an edit. In the book, Feathers suggests that this cycle can be shortened by running the tests continuously. In particular, the tests could be run as soon as you type a key in your <span class="caps">IDE</span>. That sounded interesting to me so I decided to implement a simple application for use in the <a href="/projects/#timeline">Timeline</a> project that do something similar.</p>
+<p>The application is a small <span class="caps">GUI</span> application that looks like in the pictures below. When you start it, it will run all tests (using the console based test script) and display the output. If all tests passed the top part will become green, otherwise it will become red. The special thing with this application is that it monitors the file system for changes and whenever it detects a change, it runs the tests again. So as soon as you hit save in your editor, the tests will run again automatically. That way you never have to leave your editor to find out how the change you made in the code affected the system. (Of course this relies on writing tests as well as code.)</p>
+<p><img src="/images/running.png" title="GUI Test Runner: Running" alt="GUI Test Runner: Running" /><br />
+The application is running the tests on start-up. It will also re-run them every time it detects a change in a file.</p>
+<p><img src="/images/success.png" title="GUI Test Runner: Success" alt="GUI Test Runner: Success" /><br />
+The application ran the tests and they all passed.</p>
+<p><img src="/images/failure.png" title="GUI Test Runner: Failure" alt="GUI Test Runner: Failure" /><br />
+The application ran the tests and some of them failed. You can quickly edit your code to try to fix the errors, and when you save, you find out if you fixed them or not.</p>
+<p>I will start using this tool when working on <a href="/projects/#timeline">Timeline</a> and see how it affects my productivity and code quality.</p>
+
+<hr />
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+    /* * * CONFIGURATION VARIABLES: EDIT BEFORE PASTING INTO YOUR WEBPAGE * * */
+    var disqus_shortname = 'reflectionsonprogramming'; // required: replace example with your forum shortname
+
+    /* * * DON'T EDIT BELOW THIS LINE * * */
+    (function() {
+        var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+        dsq.src = 'http://' + disqus_shortname + '.disqus.com/embed.js';
+        (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">blog comments powered by <span class="logo-disqus">Disqus</span></a>
+
+<hr />
+
+<p>Published 03 Mar 2012</p>
+
+<p><a href="/">Home</a></p>
+
+      </div>
+    </div>
+  </body>
+</html>

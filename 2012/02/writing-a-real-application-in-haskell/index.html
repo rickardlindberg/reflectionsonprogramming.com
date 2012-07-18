@@ -1,0 +1,72 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
+"http://www.w3.org/TR/html4/strict.dtd">
+<html>
+  <head>
+    <title>
+      Writing a real application in Haskell | Reflections on Programming
+    </title>
+    <meta name="keywords" content="reflections, programming" />
+    <meta name="description" content="Reflections on various aspects of programming.">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <link rel="alternate" type="application/rss+xml" title="RSS 2.0" href="/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom 0.3" href="/atom.xml" />
+    <link rel="stylesheet" href="/css/blueprint/screen.css" type="text/css" media="screen, projection">
+    <link rel="stylesheet" href="/css/blueprint/print.css" type="text/css" media="print"> 
+    <!--[if lt IE 8]>
+      <link rel="stylesheet" href="/css/blueprint/ie.css" type="text/css" media="screen, projection">
+    <![endif]-->
+    <link rel="stylesheet" href="/css/pygments/syntax.css" type="text/css"> 
+    <link rel="stylesheet" href="/css/layout.css" type="text/css"> 
+    <link rel="stylesheet" href="/css/colors.css" type="text/css"> 
+  </head>
+  <body>
+    <div class="container noshowgrid">
+      <div class="span-20 prepend-2 append-2">
+        <h1>Writing a real application in Haskell</h1>
+        <hr />
+        <p>In this post I explain why I choose to write the <a href="/2012/01/application-development-series-intro/">file organization application</a> in Haskell.</p>
+<h2>Getting away from <span class="caps">OOP</span></h2>
+<p>I&#8217;ve spent most of my time programming in object oriented languages, but I&#8217;ve also been interested in functional programming ever since I was introduced to Lisp at university.</p>
+<p>It was in the Lisp course that I first learned about recursion (or at least came to understand it), and it also taught me a lot about programming in general.</p>
+<p>The solutions that we wrote had a different structure from what I was used to.  I remember them as powerful and elegant. Somehow that elegance never made it outside the university and the Lisp course. That makes me a little sad.</p>
+<p>One big reason I find object oriented programs hard to understand is mutable state. Since that is less of a problem in functional programs, I keep thinking that functional programming must be better. Or at least yield less complicated programs.</p>
+<p>The paper <a href="http://www.cs.kent.ac.uk/people/staff/dat/miranda/whyfp90.pdf">Why Functional Programming Matters</a> also makes some compelling cases for functional programming.</p>
+<p>So how come it&#8217;s not used mainstream?</p>
+<p>Is it because it doesn&#8217;t work in practice or is it because it&#8217;s so fundamentally different that people are not willing to wrap their heads around it?</p>
+<p>I decided it was time for me to find out by trying to write a real application in a functional language.</p>
+<h2>Why Haskell?</h2>
+<p>I wanted to write a real application in a functional language. But why Haskell?</p>
+<p>I came across Haskell by accident. Because I was learning <a href="http://mercurial.selenic.com/">Mercurial</a>, I was reading <a href="http://hgbook.red-bean.com/">Mercurial: The Definitive Guide</a>, written by Bryan O&#8217;Sullivan. I found out that he had also co-authored the book <a href="http://book.realworldhaskell.org/">Real World Haskell</a>. Since I liked his first book, I started reading the one about Haskell.</p>
+<p>I found Haskell interesting for two reasons: you can obviously build real things in it (and I had a book to show me how), and it&#8217;s a purely functional language.</p>
+<p>Building real things was important because I didn&#8217;t just want to play around in a <a href="http://en.wikipedia.org/wiki/REPL"><span class="caps">REPL</span></a>. Purely functional was important so that had to force myself to adopt the functional paradigm.</p>
+<p>Another feature that makes Haskell different is lazy evaluation. It&#8217;s a feature that allows programs to be structured in a way that would otherwise be impractical. It&#8217;s also stated as one of the two advantages of functional programming in the paper mentioned above.</p>
+<h2>Conclusion</h2>
+<p>By writing the application in Haskell, I&#8217;m exploring a different way of structuring my programs. I&#8217;m expecting to learn a lot, and I will share what I learn on this blog.</p>
+
+<hr />
+
+<div id="disqus_thread"></div>
+<script type="text/javascript">
+    /* * * CONFIGURATION VARIABLES: EDIT BEFORE PASTING INTO YOUR WEBPAGE * * */
+    var disqus_shortname = 'reflectionsonprogramming'; // required: replace example with your forum shortname
+
+    /* * * DON'T EDIT BELOW THIS LINE * * */
+    (function() {
+        var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+        dsq.src = 'http://' + disqus_shortname + '.disqus.com/embed.js';
+        (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    })();
+</script>
+<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+<a href="http://disqus.com" class="dsq-brlink">blog comments powered by <span class="logo-disqus">Disqus</span></a>
+
+<hr />
+
+<p>Published 05 Feb 2012</p>
+
+<p><a href="/">Home</a></p>
+
+      </div>
+    </div>
+  </body>
+</html>
