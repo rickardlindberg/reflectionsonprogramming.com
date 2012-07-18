@@ -19,6 +19,7 @@ git rm -rf .
 
 # Copy over generated and commit
 mv $TMP_DEST/* .
+echo "reflectionsonprogramming.com" >> CNAME
 git add .
 git commit -m "publishing $publish_rev"
 
