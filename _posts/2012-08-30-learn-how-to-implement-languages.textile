@@ -1,6 +1,6 @@
 ---
 layout: post
-title: Language design
+title: Learn how to implement languages
 ---
 
 In the book "Structure and Interpretation of Computer Programs":http://mitpress.mit.edu/sicp/, the authors suggest that programming is about language design. They argue that no existing language is suitable for your particular problem, and therefore your job as a programmer is to design and implement a language in which your problem is easy to solve.
