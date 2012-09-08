@@ -1,0 +1,94 @@
+---
+layout: post
+title: Tests where?
+---
+
+This is a question I've been unable to find a satisfactory answer to since I started writing tests for my code. In this post I present my current thoughts.
+
+h2. Mirrored test folder structure
+
+This is the most common way I've seen to organize tests. You have a test directory that mirrors your source directory and you store tests in files with similar names to the source files.
+
+{% highlight text %}
+/src
+    /foo-stuff
+        /Foo.py
+    /bar-stuff
+        /Bar.py
+/tests
+    /foo-stuff
+        /FooTest.py
+    /bar-stuff
+        /BarTest.py
+{% endhighlight %}
+
+To me, this structure indicates that you should have one test file per source file. The test tree looks incomplete otherwise. I don't like the idea that you should have one test file per source file. I think it's a bad guideline for finding out what tests to write.
+
+Another thing I don't like about this structure is that it's harder to move code around. If you move the source file, you also have to move the test file.  Even if tools can help with this, the files are still coupled to the project file structure. You can't easily copy one part of the project for use in a different project.
+
+There is also no obvious place to put non unit tests. What if a test uses code from both foo and bar? This is a minor problem and can be solved by including a separate top level folder for them.
+
+h2. Flat test folder structure
+
+Another way I've tried to organize my tests is to have a flat test folder structure where the names of the test files don't have to correspond to the names of the source files (but they can).
+
+{% highlight text %}
+/src
+    /foo-stuff
+        /Foo.py
+    /bar-stuff
+        /Bar.py
+/tests
+    /TestFoo.py
+    /TestBaz.py
+{% endhighlight %}
+
+The test directory doesn't look incomplete just because there is no test file for bar. Perhaps bar contains code that is tested through foo, and there is no need to test bar explicitly.
+
+The baz test file might contain non unit tests that include many source files.  Those kinds of tests fit better into this structure than in the previous one.  Although, you might want to keep these in a separate top-level directory anyway.
+
+The problem that a source file is hard to move still remains though.
+
+h2. Test files together with source files
+
+This is similar to the first organization, but the test files live in the source tree instead of in a separate test folder.
+
+{% highlight text %}
+/src
+    /foo-stuff
+        /Foo.py
+        /FooTest.py
+    /bar-stuff
+        /Bar.py
+        /BarTest.py
+{% endhighlight %}
+
+I think this structure still suffers from one test file per source file.
+
+It does make a unit of code slightly easier to move since the test file and the source file live in the same folder. But if if you want to move some code out of a source file, you still need to move part of the test code as well.
+
+In addition, this organization might clutter the source tree and make it harder to see how the source code is organized.
+
+h2. Test in the same file
+
+In this organization, tests are stored together with the implementation. In the same file. I've not seen this used very often. But frameworks like "doctest":http://docs.python.org/library/doctest.html allows you to do this.
+
+{% highlight text %}
+/src
+    /Foo.py
+    /Bar.py
+{% endhighlight %}
+
+In this setup, a source file is easy to move around. And all documentation in form of tests automatically moves with it. Even if you move part of a source file, the tests automatically moves with it since the tests are written right beside the functions. I like this.
+
+One downside might be that the implementation is harder to read because there is test code in the way.
+
+Certain types of code might require s
+
+And for certain types of code, requires lots of test code. FP better here.
+
+h2. Related reading elsewhere
+
+* "Thinking Functionally with Haskell":http://pragprog.com/magazines/2012-09/thinking-functionally-with-haskell by Paul Callaghan. Talks about how static typing is a form of testing. Argues that with more powerful type systems, we can express more tests as types. And types live together with the functions.
+
+* "Coding: Packaging by vertical slice":http://www.markhneedham.com/blog/2012/02/20/coding-packaging-by-vertical-slice/ by Mark Needham. Talks about a different way to structure source code.
