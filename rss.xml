@@ -7,9 +7,82 @@
     <atom:link href="http://reflectionsonprogramming.com/rss.xml" rel="self" type="application/rss+xml" />
     <description>My reflections on programming.</description>
     <language>en-us</language>
-    <pubDate>Thu, 30 Aug 2012 10:29:56 +0200</pubDate>
-    <lastBuildDate>Thu, 30 Aug 2012 10:29:56 +0200</lastBuildDate>
+    <pubDate>Sat, 08 Sep 2012 14:45:31 +0200</pubDate>
+    <lastBuildDate>Sat, 08 Sep 2012 14:45:31 +0200</lastBuildDate>
 
+    
+    <item>
+      <title>How to organize your tests?</title>
+      <link>http://reflectionsonprogramming.com/2012/09/how-to-organize-your-tests</link>
+      <pubDate>Sat, 08 Sep 2012 00:00:00 +0200</pubDate>
+      <author>ricli85@gmail.com (Rickard Lindberg)</author>
+      <guid>http://reflectionsonprogramming.com/2012/09/how-to-organize-your-tests</guid>
+      <description>&lt;p&gt;This is a question I&amp;#8217;ve been unable to find a satisfactory answer to since I started writing tests for my code. In this post I present my current thoughts.&lt;/p&gt;
+&lt;h2&gt;Mirrored test folder&lt;/h2&gt;
+&lt;p&gt;This is the most common way I&amp;#8217;ve seen to organize tests. You have a test folder that mirrors your source folder and you store tests in files with similar names to the source files.&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;text&quot;&gt;/src
+    /foo-stuff
+        /Foo.py
+    /bar-stuff
+        /Bar.py
+/tests
+    /foo-stuff
+        /FooTest.py
+    /bar-stuff
+        /BarTest.py
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;To me, this structure indicates that you should have one test file per source file. The test tree looks incomplete otherwise. I don&amp;#8217;t like the idea that you should have one test file per source file. I think it&amp;#8217;s a bad guideline for what tests to write.&lt;/p&gt;
+&lt;p&gt;Another thing I don&amp;#8217;t like about this structure is that it&amp;#8217;s harder to move code around. If you move a source file, you also have to move a test file.  Even if tools can help with this, the files are still coupled to the project file structure. You can&amp;#8217;t easily copy one part of the project for use in a different project.&lt;/p&gt;
+&lt;p&gt;There is also no obvious place to store non unit tests. What if a test uses code from both foo and bar? This is a minor problem and can be solved by including a separate top level folder for them.&lt;/p&gt;
+&lt;h2&gt;Flat test folder&lt;/h2&gt;
+&lt;p&gt;Another way I&amp;#8217;ve tried to organize my tests is to have a flat test folder where the names of the test files don&amp;#8217;t have to correspond to the names of the source files (but they can).&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;text&quot;&gt;/src
+    /foo-stuff
+        /Foo.py
+    /bar-stuff
+        /Bar.py
+/tests
+    /TestFoo.py
+    /TestBaz.py
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;The test folder doesn&amp;#8217;t look incomplete just because there is no test file for bar. Perhaps bar contains code that is tested through foo, and there is no need to test bar explicitly.&lt;/p&gt;
+&lt;p&gt;The baz test file might contain non unit tests. Those kinds of tests fit better in this structure than in the previous one. Although, you might want to keep these in a separate top-level folder anyway.&lt;/p&gt;
+&lt;p&gt;It is now slightly easier to move a source file within the project, but the problem that a unit of code is hard to move to another project still remains.&lt;/p&gt;
+&lt;h2&gt;Test files together with source files&lt;/h2&gt;
+&lt;p&gt;This is similar to the first structure, but the test files live in the source tree instead of in a separate test folder.&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;text&quot;&gt;/src
+    /foo-stuff
+        /Foo.py
+        /FooTest.py
+    /bar-stuff
+        /Bar.py
+        /BarTest.py
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;I think this structure still suffers from one test file per source file.&lt;/p&gt;
+&lt;p&gt;It does make a unit of code slightly easier to move since the test file and the source file live in the same folder. But if if you want to move some code out of a source file, you still need to move part of the test code as well.&lt;/p&gt;
+&lt;p&gt;In addition, this structure might clutter the source tree and make it harder to see how the source code is organized.&lt;/p&gt;
+&lt;h2&gt;Tests in the same file&lt;/h2&gt;
+&lt;p&gt;In this structure, tests are stored together with the implementation. In the same file. I&amp;#8217;ve not seen this used very often. But frameworks like &lt;a href=&quot;http://docs.python.org/library/doctest.html&quot;&gt;doctest&lt;/a&gt; allow you to do this.&lt;/p&gt;
+&lt;div class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;text&quot;&gt;/src
+    /foo-stuff
+        /Foo.py
+    /bar-stuff
+        /Bar.py
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;In this structure, a source file is easy to move around. And all documentation in form of tests automatically moves with it. Even if you move part of a source file, the tests automatically moves with it since the tests are written right beside the functions. I like this.&lt;/p&gt;
+&lt;p&gt;One downside might be that the implementation becomes harder to read because there is test code in the way. Some functions might need complicated test code. Mock objects take up space for example.&lt;/p&gt;
+&lt;h2&gt;Related reading elsewhere&lt;/h2&gt;
+&lt;ul&gt;
+	&lt;li&gt;&lt;a href=&quot;http://pragprog.com/magazines/2012-09/thinking-functionally-with-haskell&quot;&gt;Thinking Functionally with Haskell&lt;/a&gt; by Paul Callaghan. Talks about how static typing is a form of testing, and argues that with more powerful type systems, we can express more tests as types. If types are a form of tests, maybe tests should live in the source code?&lt;/li&gt;
+&lt;/ul&gt;
+&lt;ul&gt;
+	&lt;li&gt;&lt;a href=&quot;http://www.markhneedham.com/blog/2012/02/20/coding-packaging-by-vertical-slice/&quot;&gt;Coding: Packaging by vertical slice&lt;/a&gt; by Mark Needham. Talks about two different ways to structure source code.&lt;/li&gt;
+&lt;/ul&gt;</description>
+    </item>
     
     <item>
       <title>Learn how to implement languages</title>
