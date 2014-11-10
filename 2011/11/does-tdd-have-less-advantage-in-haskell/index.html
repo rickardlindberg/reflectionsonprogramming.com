@@ -37,35 +37,7 @@
       <div class="span-20 prepend-2 append-2">
         <h1>Does TDD have less advantage in Haskell?</h1>
         <hr />
-        <p>In his talk about <a href="http://arrrrcamp.be/videos/2011/corey-haines---fast-rails-tests/">fast rails tests</a>, Corey Haines discusses the fundamental difference between test first programming and test driven development. The difference is how you respond to pain. If your tests are difficult to write or painful to run, do you change your tests or do you change your design? If you are doing <span class="caps">TDD</span> you let the pain from the tests drive a better design. The idea is that if your code is easy to test, it is better designed than if it&#8217;s hard to test.</p>
-<p>So what makes something painful to test? In the talk, it was using a third party library (rails) which took a long time to both load and run. I think it took long to run mainly because it was interacting with a database. So if you write your code in such a way that it does not depend on external resources, it is easier to test, and therefore also better designed.</p>
-<p>In Haskell (<a href="/2011/10/learning-haskell/">which I&#8217;m currently learning</a>) you make a distinction between pure and impure functions. Pure functions do not have side effects and they always return the same value when called with the same arguments. Pure functions are therefore easy to test.</p>
-<p>Since it seems to be common in Haskell to divide your program into pure and impure parts, and to write as much as possible as pure code, I wonder if <span class="caps">TDD</span> has less advantage here than in object oriented languages. Perhaps it is easier to make a better design in Haskel because the language encourages you to use constructs that lead to a better design. I have a feeling that in object oriented languages you have to be careful to not do the wrong thing, whereas in Haskell, the right thing is easier to do.</p>
-<p>I&#8217;m not suggesting that you should skip writing test for your Haskell programs (I think you should). I&#8217;m just saying that perhaps it is easier to write better designed programs in Haskel than in object oriented languages.</p>
-
-<hr />
-
-<div id="disqus_thread"></div>
-<script type="text/javascript">
-    /* * * CONFIGURATION VARIABLES: EDIT BEFORE PASTING INTO YOUR WEBPAGE * * */
-    var disqus_shortname = 'reflectionsonprogramming'; // required: replace example with your forum shortname
-
-    /* * * DON'T EDIT BELOW THIS LINE * * */
-    (function() {
-        var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
-        dsq.src = 'http://' + disqus_shortname + '.disqus.com/embed.js';
-        (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
-    })();
-</script>
-<noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
-<a href="http://disqus.com" class="dsq-brlink">blog comments powered by <span class="logo-disqus">Disqus</span></a>
-
-<hr />
-
-<p>Published 02 Nov 2011</p>
-
-<p><a href="/">Home</a></p>
-
+        <p><strong>This page has moved to <a href="http://rickardlindberg.me/writing/reflections-on-programming/2011-11-02-does-tdd-have-less-advantage-in-haskell">http://rickardlindberg.me/writing/reflections-on-programming/2011-11-02-does-tdd-have-less-advantage-in-haskell<a>.</p>
       </div>
     </div>
   </body>
